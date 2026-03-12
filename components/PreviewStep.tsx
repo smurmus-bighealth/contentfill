@@ -44,14 +44,45 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
     return matchesSearch && matchesFilter;
   });
 
-  // Merge overrides into updates before applying
+  // Merge overrides into updates before applying.
+  // When overrides exist, server-side collision errors may be stale (they reference
+  // pre-edit values), so we strip them and re-run duplicate detection client-side.
   function buildFinalUpdates(): TransformResult[] {
-    return result.updates.map((u) => {
+    const withOverrides = result.updates.map((u) => {
       const override = overrides[u.entryId];
       if (override !== undefined) {
         return { ...u, proposedValue: override, errors: [], warnings: ['Manually overridden'] };
       }
       return u;
+    });
+
+    if (Object.keys(overrides).length === 0) return withOverrides;
+
+    // Strip stale collision errors then re-detect duplicates across current values
+    const cleaned = withOverrides.map((u) => ({
+      ...u,
+      errors: u.errors.filter((e) => !e.toLowerCase().includes('collides with')),
+    }));
+
+    const seen = new Map<unknown, string[]>(); // proposedValue → [entryIds]
+    for (const u of cleaned) {
+      if (u.proposedValue == null || u.proposedValue === '') continue;
+      const group = seen.get(u.proposedValue) ?? [];
+      group.push(u.entryId);
+      seen.set(u.proposedValue, group);
+    }
+
+    return cleaned.map((u) => {
+      if (u.proposedValue == null || u.proposedValue === '') return u;
+      const group = seen.get(u.proposedValue)!;
+      if (group.length <= 1) return u;
+      const otherLabels = group
+        .filter((id) => id !== u.entryId)
+        .map((id) => cleaned.find((o) => o.entryId === id)?.displayLabel ?? id);
+      return {
+        ...u,
+        errors: [...u.errors, `Value "${u.proposedValue}" collides with: ${otherLabels.join(', ')}. Rename one of them.`],
+      };
     });
   }
 

@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       brokenTransforms: BROKEN_TRANSFORMS,
       spaceId: process.env.CONTENTFUL_SPACE_ID ?? '',
       environment: process.env.CONTENTFUL_ENVIRONMENT ?? 'master',
+      anthropicEnabled: !!process.env.ANTHROPIC_API_KEY,
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

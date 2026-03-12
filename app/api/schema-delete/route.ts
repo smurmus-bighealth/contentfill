@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
+import { checkAuth } from '@/lib/auth';
 import { omitField, removeField } from '@/lib/schema-migration';
 import { CT_CACHE_TAG } from '@/lib/contentful';
 
@@ -12,6 +13,9 @@ import { CT_CACHE_TAG } from '@/lib/contentful';
  *   Phase 'remove' — removes field from the schema array and publishes
  */
 export async function POST(req: NextRequest) {
+  if (!checkAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const { selectedCTs, fieldId, phase } = (await req.json()) as {
       selectedCTs: Array<{ id: string; name: string }>;

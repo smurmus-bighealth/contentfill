@@ -171,7 +171,8 @@ export async function bulkPublishEntries(
       const action = await env.createPublishBulkAction({
         entities: {
           sys: { type: 'Array' },
-          items: chunk.map((id) => ({ sys: { type: 'Link', linkType: 'Entry', id } })),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          items: chunk.map((id) => ({ sys: { type: 'Link', linkType: 'Entry', id } })) as any,
         },
       });
       const result = await action.waitProcessing();

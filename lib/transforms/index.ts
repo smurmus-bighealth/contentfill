@@ -57,4 +57,3 @@ export function getTransform(id: string): Transform | undefined {
 }
 
 export type { Transform, TransformResult, EntrySnapshot, ConfigFieldDef } from './types';
-export type { BrokenTransform };

@@ -22,6 +22,7 @@ interface BootstrapData {
   brokenTransforms?: BrokenTransform[];
   spaceId: string;
   environment: string;
+  anthropicEnabled?: boolean;
 }
 
 export interface ConfigValues {
@@ -50,6 +51,13 @@ export default function ConfigStep({ onSubmit }: Props) {
   const [transformConfig, setTransformConfig] = useState<Record<string, unknown>>({});
   const [locale, setLocale] = useState('en-US');
   const [skipExisting, setSkipExisting] = useState(true);
+
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiDescription, setAiDescription] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiCode, setAiCode] = useState('');
+  const [aiError, setAiError] = useState('');
+  const [aiCopied, setAiCopied] = useState(false);
 
   useEffect(() => {
     const CACHE_KEY = 'contentful-admin:bootstrap';
@@ -128,6 +136,23 @@ export default function ConfigStep({ onSubmit }: Props) {
     }
     setTransformConfig(defaults);
   }, [selectedTransform]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleGenerateTransform() {
+    if (!ct || !aiDescription.trim()) return;
+    setAiGenerating(true);
+    setAiCode('');
+    setAiError('');
+    try {
+      const res = await apiFetch<{ code: string }>('/api/generate-transform', {
+        json: { description: aiDescription, fields: ct.fields.map((f) => f.id) },
+      });
+      setAiCode(res.code);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiGenerating(false);
+    }
+  }
 
   function handleConfigChange(fieldId: string, value: unknown) {
     setTransformConfig((prev) => ({ ...prev, [fieldId]: value }));
@@ -392,6 +417,70 @@ export default function ConfigStep({ onSubmit }: Props) {
                   </div>
                 ))}
               </div>
+
+              {/* AI transform generator — only shown when Anthropic is configured and a CT is selected */}
+              {data.anthropicEnabled && ct && (
+                <div className="mt-4 rounded-md border border-purple-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setAiOpen((v) => !v)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-purple-800 bg-purple-50 hover:bg-purple-100 transition-colors"
+                  >
+                    <span>Generate with AI ✨</span>
+                    <svg
+                      className={`h-4 w-4 shrink-0 text-purple-400 transition-transform ${aiOpen ? 'rotate-180' : ''}`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {aiOpen && (
+                    <div className="border-t border-purple-100 p-4 space-y-3 bg-white">
+                      <p className="text-xs text-gray-500">
+                        Describe the transform you want — AI will generate a TypeScript file based on this content type&apos;s fields.
+                      </p>
+                      <textarea
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        placeholder="e.g. copy the title field value to the seoTitle field"
+                        rows={3}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerateTransform}
+                        disabled={aiGenerating || !aiDescription.trim()}
+                        className="rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {aiGenerating ? 'Generating…' : 'Generate'}
+                      </button>
+                      {aiError && (
+                        <p className="text-xs text-red-600">{aiError}</p>
+                      )}
+                      {aiCode && (
+                        <div className="space-y-2">
+                          <pre className="overflow-x-auto rounded-md bg-gray-900 p-4 text-xs text-gray-100 whitespace-pre-wrap">{aiCode}</pre>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(aiCode);
+                              setAiCopied(true);
+                              setTimeout(() => setAiCopied(false), 2000);
+                            }}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                          >
+                            {aiCopied ? 'Copied!' : 'Copy'}
+                          </button>
+                          <p className="text-xs text-gray-500">
+                            Save to <code className="rounded bg-gray-100 px-1 font-mono">lib/transforms/your-name.ts</code>, register in <code className="rounded bg-gray-100 px-1 font-mono">lib/transforms/index.ts</code>, restart server
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </fieldset>
           )}
 
