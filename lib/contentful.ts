@@ -36,48 +36,62 @@ export interface ContentTypeSummary {
   fields: ContentTypeField[];
 }
 
+export const CT_CACHE_TAG = 'contentful:content-types';
+
+export type RawEntry = Awaited<ReturnType<Environment['getEntries']>>['items'][number];
+export type RawContentType = Awaited<ReturnType<Environment['getContentTypes']>>['items'][number];
+
+/** Maps a raw CMA ContentType object to our slim summary shape. */
+export function mapRawContentType(ct: RawContentType): ContentTypeSummary {
+  return {
+    id: ct.sys.id,
+    name: ct.name,
+    fields: ct.fields.map((f) => {
+      let linkType: string | undefined;
+      let linkedContentTypes: string[] | undefined;
+
+      if (f.type === 'Link') {
+        linkType = f.linkType as string | undefined;
+        const v = (f.validations as Array<{ linkContentType?: string[] }>)
+          ?.find((x) => x.linkContentType?.length);
+        if (v?.linkContentType) linkedContentTypes = v.linkContentType;
+      } else if (f.type === 'Array') {
+        const items = f.items as { type?: string; linkType?: string; validations?: Array<{ linkContentType?: string[] }> } | undefined;
+        if (items?.type === 'Link') {
+          linkType = items.linkType;
+          const v = items.validations?.find((x) => x.linkContentType?.length);
+          if (v?.linkContentType) linkedContentTypes = v.linkContentType;
+        }
+      }
+
+      return {
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        required: f.required,
+        ...(linkType ? { linkType } : {}),
+        ...(linkedContentTypes ? { linkedContentTypes } : {}),
+      };
+    }),
+  };
+}
+
 export const getContentTypes = unstable_cache(
   async (): Promise<ContentTypeSummary[]> => {
     const env = await getEnvironment();
     const result = await env.getContentTypes({ limit: 200 });
-    return result.items.map((ct) => ({
-      id: ct.sys.id,
-      name: ct.name,
-      fields: ct.fields.map((f) => {
-        let linkType: string | undefined;
-        let linkedContentTypes: string[] | undefined;
-
-        if (f.type === 'Link') {
-          linkType = f.linkType as string | undefined;
-          const v = (f.validations as Array<{ linkContentType?: string[] }>)
-            ?.find((x) => x.linkContentType?.length);
-          if (v?.linkContentType) linkedContentTypes = v.linkContentType;
-        } else if (f.type === 'Array') {
-          const items = f.items as { type?: string; linkType?: string; validations?: Array<{ linkContentType?: string[] }> } | undefined;
-          if (items?.type === 'Link') {
-            linkType = items.linkType;
-            const v = items.validations?.find((x) => x.linkContentType?.length);
-            if (v?.linkContentType) linkedContentTypes = v.linkContentType;
-          }
-        }
-
-        return {
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          required: f.required,
-          ...(linkType ? { linkType } : {}),
-          ...(linkedContentTypes ? { linkedContentTypes } : {}),
-        };
-      }),
-    }));
+    return result.items.map(mapRawContentType);
   },
   ['contentful:content-types'],
-  { revalidate: 3600 }, // re-fetch schema at most once per hour
+  { revalidate: 3600, tags: [CT_CACHE_TAG] },
 );
 
-export type RawEntry = Awaited<ReturnType<Environment['getEntries']>>['items'][number];
-export type RawContentType = Awaited<ReturnType<Environment['getContentTypes']>>['items'][number];
+/** Bypasses the cache — use for manual refresh after out-of-band Contentful changes. */
+export async function fetchContentTypesFresh(): Promise<ContentTypeSummary[]> {
+  const env = await getEnvironment();
+  const result = await env.getContentTypes({ limit: 200 });
+  return result.items.map(mapRawContentType);
+}
 
 /** Fetches all entries for a content type, handling Contentful's pagination. */
 export async function getAllEntries(contentType: string): Promise<RawEntry[]> {

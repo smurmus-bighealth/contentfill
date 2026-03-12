@@ -27,10 +27,6 @@ interface BootstrapData {
 
 const BOOTSTRAP_CACHE_KEY = 'contentful-admin:bootstrap';
 
-function clearBootstrapCache() {
-  try { sessionStorage.removeItem(BOOTSTRAP_CACHE_KEY); } catch { /* ignore */ }
-}
-
 // ── Step / workflow types ─────────────────────────────────────────────────────
 
 type FlowStep = 'config' | 'preview' | 'apply';
@@ -53,9 +49,9 @@ export default function Home() {
     } catch { /* ignore */ }
     apiFetch<BootstrapData & { transforms: unknown[] }>('/api/content-types')
       .then((d) => {
-        const data: BootstrapData = { contentTypes: d.contentTypes, spaceId: d.spaceId, environment: d.environment };
-        try { sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
-        setBootstrapData(data);
+        // Store the full response so ConfigStep (which reads transforms from the same key) doesn't crash
+        try { sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(d)); } catch { /* ignore */ }
+        setBootstrapData({ contentTypes: d.contentTypes, spaceId: d.spaceId, environment: d.environment });
       })
       .catch(() => { /* ConfigStep handles errors for update-entries tab */ });
   }, []);
@@ -64,27 +60,57 @@ export default function Home() {
   const spaceId = bootstrapData?.spaceId ?? '';
   const environment = bootstrapData?.environment ?? 'master';
 
-  // After a schema mutation, bust the bootstrap cache and silently re-fetch.
-  // We do NOT clear bootstrapData in state — old data stays visible until fresh data arrives
-  // so the results screen never flickers to "Loading…".
-  function invalidateBootstrap() {
-    clearBootstrapCache();
-    apiFetch<BootstrapData & { transforms: unknown[] }>('/api/content-types')
+  // Patches only the affected CTs in state + sessionStorage — zero extra API calls.
+  // Called after schema mutations with the updated CT summaries returned by the mutation API.
+  function patchBootstrap(updatedCTs: ContentTypeSummary[]) {
+    setBootstrapData((prev) => {
+      if (!prev) return prev;
+      const updatedMap = new Map(updatedCTs.map((ct) => [ct.id, ct]));
+      const patched = prev.contentTypes.map((ct) => updatedMap.get(ct.id) ?? ct);
+      const next = { ...prev, contentTypes: patched };
+      try {
+        const cached = sessionStorage.getItem(BOOTSTRAP_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify({ ...parsed, contentTypes: patched }));
+        }
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  // Full force-refresh — bypasses server cache. Use for out-of-band Contentful changes.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  function forceRefresh() {
+    setIsRefreshing(true);
+    apiFetch<BootstrapData & { transforms: unknown[] }>('/api/content-types?refresh=1')
       .then((d) => {
-        const data: BootstrapData = { contentTypes: d.contentTypes, spaceId: d.spaceId, environment: d.environment };
-        try { sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
-        setBootstrapData(data);
+        try { sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(d)); } catch { /* ignore */ }
+        setBootstrapData({ contentTypes: d.contentTypes, spaceId: d.spaceId, environment: d.environment });
       })
-      .catch(() => { /* ignore */ });
+      .catch(() => { /* ignore */ })
+      .finally(() => setIsRefreshing(false));
   }
 
   return (
     <div className="space-y-6">
-      {/* Workflow tabs */}
-      <div className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm w-fit">
-        <WorkflowTab active={workflow === 'update-entries'} onClick={() => setWorkflow('update-entries')} label="Update Entries" />
-        <WorkflowTab active={workflow === 'add-field'} onClick={() => setWorkflow('add-field')} label="Add Field" />
-        <WorkflowTab active={workflow === 'delete-field'} onClick={() => setWorkflow('delete-field')} label="Delete Field" />
+      {/* Workflow tabs + refresh button */}
+      <div className="flex items-center gap-3">
+        <div className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm w-fit">
+          <WorkflowTab active={workflow === 'update-entries'} onClick={() => setWorkflow('update-entries')} label="Update Entries" />
+          <WorkflowTab active={workflow === 'add-field'} onClick={() => setWorkflow('add-field')} label="Add Field" />
+          <WorkflowTab active={workflow === 'delete-field'} onClick={() => setWorkflow('delete-field')} label="Delete Field" />
+        </div>
+        <button
+          type="button"
+          onClick={forceRefresh}
+          disabled={isRefreshing}
+          title="Force-refresh content types from Contentful"
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-500 shadow-sm hover:text-gray-800 disabled:opacity-50 transition-colors"
+        >
+          <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
+          {isRefreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
       </div>
 
       {workflow === 'update-entries' && (
@@ -95,7 +121,7 @@ export default function Home() {
           contentTypes={contentTypes}
           spaceId={spaceId}
           environment={environment}
-          onSuccess={invalidateBootstrap}
+          onSuccess={patchBootstrap}
         />
       )}
       {workflow === 'delete-field' && (
@@ -103,7 +129,7 @@ export default function Home() {
           contentTypes={contentTypes}
           spaceId={spaceId}
           environment={environment}
-          onSuccess={invalidateBootstrap}
+          onSuccess={patchBootstrap}
         />
       )}
     </div>
@@ -223,6 +249,8 @@ function UpdateEntriesFlow({ spaceId, environment }: { spaceId: string; environm
             onApply={handleApply}
             onBack={reset}
             isApplying={isApplying}
+            spaceId={spaceId}
+            environment={environment}
           />
         </>
       )}
@@ -250,7 +278,7 @@ function AddFieldFlow({
   contentTypes: ContentTypeSummary[];
   spaceId: string;
   environment: string;
-  onSuccess: () => void;
+  onSuccess: (updatedCTs: ContentTypeSummary[]) => void;
 }) {
   const [step, setStep] = useState<FlowStep>('config');
   const [addFieldValues, setAddFieldValues] = useState<AddFieldValues | null>(null);
@@ -289,7 +317,12 @@ function AddFieldFlow({
       });
       setApplyResult(result);
       setStep('apply');
-      if (result.succeeded.length > 0) onSuccess();
+      if (result.succeeded.length > 0) {
+        const updatedCTs: ContentTypeSummary[] = result.succeeded
+          .filter((s) => s.updatedFields)
+          .map((s) => ({ id: s.contentTypeId, name: s.contentTypeName, fields: s.updatedFields! }));
+        if (updatedCTs.length > 0) onSuccess(updatedCTs);
+      }
     } catch (e) {
       setApplyError((e as Error).message);
     } finally {
@@ -362,7 +395,7 @@ function DeleteFieldFlow({
   contentTypes: ContentTypeSummary[];
   spaceId: string;
   environment: string;
-  onSuccess: () => void;
+  onSuccess: (updatedCTs: ContentTypeSummary[]) => void;
 }) {
   const [step, setStep] = useState<FlowStep>('config');
   const [deleteValues, setDeleteValues] = useState<DeleteFieldValues | null>(null);
@@ -371,7 +404,7 @@ function DeleteFieldFlow({
   const [deleteCtSnapshot, setDeleteCtSnapshot] = useState<ContentTypeSummary[]>([]);
   const [applyResult, setApplyResult] = useState<SchemaDeleteResult | null>(null);
   const [isApplying, setIsApplying] = useState(false);
-  const [applyPhaseLabel, setApplyPhaseLabel] = useState<string | null>(null);
+  const [applyPhase, setApplyPhase] = useState<1 | 2 | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
 
   function handleDeleteSubmit(values: DeleteFieldValues) {
@@ -395,17 +428,22 @@ function DeleteFieldFlow({
       const cts = toDelete.map((o) => ({ id: o.contentTypeId, name: o.contentTypeName }));
 
       // Phase 1: mark field as omitted and publish
-      setApplyPhaseLabel('Phase 1 of 2: marking field as omitted…');
+      setApplyPhase(1);
       const phase1 = await apiFetch<SchemaDeleteResult>('/api/schema-delete', {
         method: 'POST',
         json: { selectedCTs: cts, fieldId: deleteValues.fieldId, phase: 'omit' },
       });
 
       // Phase 2: remove field from schema — only the CTs that passed phase 1
-      setApplyPhaseLabel('Phase 2 of 2: removing field from schema…');
+      // Map back to { id, name } shape that the route expects
+      setApplyPhase(2);
       const phase2 = await apiFetch<SchemaDeleteResult>('/api/schema-delete', {
         method: 'POST',
-        json: { selectedCTs: phase1.succeeded, fieldId: deleteValues.fieldId, phase: 'remove' },
+        json: {
+          selectedCTs: phase1.succeeded.map((s) => ({ id: s.contentTypeId, name: s.contentTypeName })),
+          fieldId: deleteValues.fieldId,
+          phase: 'remove',
+        },
       });
 
       const result: SchemaDeleteResult = {
@@ -414,12 +452,18 @@ function DeleteFieldFlow({
       };
       setApplyResult(result);
       setStep('apply');
-      if (result.succeeded.length > 0) onSuccess();
+      if (result.succeeded.length > 0) {
+        // phase2 succeeded items carry updatedFields from the final remove publish
+        const updatedCTs: ContentTypeSummary[] = result.succeeded
+          .filter((s) => s.updatedFields)
+          .map((s) => ({ id: s.contentTypeId, name: s.contentTypeName, fields: s.updatedFields! }));
+        if (updatedCTs.length > 0) onSuccess(updatedCTs);
+      }
     } catch (e) {
       setApplyError((e as Error).message);
     } finally {
       setIsApplying(false);
-      setApplyPhaseLabel(null);
+      setApplyPhase(null);
     }
   }
 
@@ -429,6 +473,7 @@ function DeleteFieldFlow({
     setOutcomes([]);
     setDeleteCtSnapshot([]);
     setApplyResult(null);
+    setApplyPhase(null);
     setApplyError(null);
   }
 
@@ -462,7 +507,7 @@ function DeleteFieldFlow({
             onApply={handleApply}
             onBack={reset}
             isApplying={isApplying}
-            applyPhaseLabel={applyPhaseLabel}
+            applyPhase={applyPhase}
           />
         </>
       )}

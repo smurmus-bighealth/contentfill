@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { applySchemaChange } from '@/lib/schema-migration';
+import { CT_CACHE_TAG } from '@/lib/contentful';
 import type { NewFieldDefinition } from '@/lib/schema-migration';
 
 export async function POST(req: NextRequest) {
@@ -9,6 +11,7 @@ export async function POST(req: NextRequest) {
       field: NewFieldDefinition;
     };
     const result = await applySchemaChange(selectedCTs, field);
+    if (result.succeeded.length > 0) revalidateTag(CT_CACHE_TAG);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -48,12 +48,15 @@ export async function dryRun(plan: MigrationPlan): Promise<DryRunResult> {
     for (const [key, localeMap] of Object.entries(entry.fields)) {
       resolvedFields[key] = (localeMap as Record<string, unknown>)[plan.locale] ?? null;
     }
+    const sourceField = plan.transformConfig.sourceField as string | undefined;
+    const displayLabel =
+      (sourceField && typeof resolvedFields[sourceField] === 'string' ? resolvedFields[sourceField] as string : null) ??
+      (resolvedFields['title'] as string | undefined) ??
+      (resolvedFields['name'] as string | undefined) ??
+      entry.sys.id;
     return {
       id: entry.sys.id,
-      displayLabel:
-        (resolvedFields['title'] as string) ??
-        (resolvedFields['name'] as string) ??
-        entry.sys.id,
+      displayLabel,
       fields: resolvedFields,
     };
   });

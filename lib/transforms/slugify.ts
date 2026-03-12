@@ -10,9 +10,10 @@ function toSlug(text: string, wordLimit: number): string {
   if (!text?.trim()) return '';
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')  // replace all non-alphanumeric (including hyphens) with spaces
     .trim()
     .split(/\s+/)
+    .filter(Boolean)
     .slice(0, wordLimit)
     .join('-');
 }

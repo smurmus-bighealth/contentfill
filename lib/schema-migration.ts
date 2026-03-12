@@ -7,7 +7,8 @@
  *     running SCHEMA_CONCURRENCY at a time
  */
 
-import { getEnvironment } from './contentful';
+import { getEnvironment, mapRawContentType } from './contentful';
+import type { RawContentType } from './contentful';
 import type { NewFieldDefinition, SchemaApplyResult, SchemaDeleteResult } from './schema-migration-shared';
 
 // Re-export shared types so callers can import from one place
@@ -88,8 +89,12 @@ export async function applySchemaChange(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (ct.fields as any[]).push(buildFieldProps(field));
         const updated = await ct.update();
-        await updated.publish();
-        succeeded.push({ contentTypeId: ctId, contentTypeName: ctName });
+        const published = await updated.publish();
+        succeeded.push({
+          contentTypeId: ctId,
+          contentTypeName: ctName,
+          updatedFields: mapRawContentType(published as unknown as RawContentType).fields,
+        });
       } catch (err) {
         failed.push({ contentTypeId: ctId, contentTypeName: ctName, error: String(err) });
       }
@@ -159,8 +164,12 @@ export async function removeField(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (ct.fields as any[]) = (ct.fields as any[]).filter((f: any) => f.id !== fieldId);
         const updated = await ct.update();
-        await updated.publish();
-        succeeded.push({ contentTypeId: ctId, contentTypeName: ctName });
+        const published = await updated.publish();
+        succeeded.push({
+          contentTypeId: ctId,
+          contentTypeName: ctName,
+          updatedFields: mapRawContentType(published as unknown as RawContentType).fields,
+        });
       } catch (err) {
         failed.push({ contentTypeId: ctId, contentTypeName: ctName, error: String(err) });
       }

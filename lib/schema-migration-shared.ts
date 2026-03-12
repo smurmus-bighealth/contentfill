@@ -3,7 +3,7 @@
  * No server-side imports — safe to use in 'use client' components.
  */
 
-import type { ContentTypeSummary } from './contentful';
+import type { ContentTypeSummary, ContentTypeField } from './contentful';
 
 export type NewFieldType =
   | 'Symbol'
@@ -45,7 +45,7 @@ export interface CTDryRunOutcome {
 }
 
 export interface SchemaApplyResult {
-  succeeded: Array<{ contentTypeId: string; contentTypeName: string }>;
+  succeeded: Array<{ contentTypeId: string; contentTypeName: string; updatedFields?: ContentTypeField[] }>;
   failed: Array<{ contentTypeId: string; contentTypeName: string; error: string }>;
 }
 
@@ -99,7 +99,7 @@ export interface CTDeleteOutcome {
 }
 
 export interface SchemaDeleteResult {
-  succeeded: Array<{ contentTypeId: string; contentTypeName: string }>;
+  succeeded: Array<{ contentTypeId: string; contentTypeName: string; updatedFields?: ContentTypeField[] }>;
   failed: Array<{ contentTypeId: string; contentTypeName: string; error: string }>;
 }
 

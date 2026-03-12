@@ -160,13 +160,18 @@ export default function AddFieldApplyStep({ result, field, contentTypes, spaceId
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onReset}
-        className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        Add another field
-      </button>
+      <div className="sticky bottom-0 -mx-4 px-4">
+        <div className="pointer-events-none h-8" style={{ background: 'linear-gradient(to bottom, rgba(249,250,251,0), rgb(249,250,251))' }} />
+        <div className="bg-gray-50 pb-6 pt-1">
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Add another field
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

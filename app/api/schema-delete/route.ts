@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { omitField, removeField } from '@/lib/schema-migration';
+import { CT_CACHE_TAG } from '@/lib/contentful';
 
 /**
  * POST /api/schema-delete
@@ -19,6 +21,8 @@ export async function POST(req: NextRequest) {
     const result = phase === 'omit'
       ? await omitField(selectedCTs, fieldId)
       : await removeField(selectedCTs, fieldId);
+    // Bust the server-side content type cache after the final phase
+    if (phase === 'remove' && result.succeeded.length > 0) revalidateTag(CT_CACHE_TAG);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

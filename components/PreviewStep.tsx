@@ -13,9 +13,16 @@ interface Props {
   onApply: (updates: TransformResult[]) => void;
   onBack: () => void;
   isApplying: boolean;
+  spaceId: string;
+  environment: string;
 }
 
-export default function PreviewStep({ config, result, onApply, onBack, isApplying }: Props) {
+function entryUrl(spaceId: string, environment: string, entryId: string) {
+  const envSegment = environment === 'master' ? '' : `/environments/${environment}`;
+  return `https://app.contentful.com/spaces/${spaceId}${envSegment}/entries/${entryId}`;
+}
+
+export default function PreviewStep({ config, result, onApply, onBack, isApplying, spaceId, environment }: Props) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   // Allow manual overrides for flagged entries
@@ -105,7 +112,7 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-4 py-3 text-left w-32">Entry ID</th>
-              <th className="px-4 py-3 text-left">Label</th>
+              <th className="px-4 py-3 text-left">{typeof config.transformConfig?.sourceField === 'string' ? config.transformConfig.sourceField : 'Entry'}</th>
               <th className="px-4 py-3 text-left w-36">Current value</th>
               <th className="px-4 py-3 text-left w-56">Proposed value</th>
               <th className="px-4 py-3 text-left w-10"></th>
@@ -129,7 +136,17 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
                     hasError ? 'bg-red-50' : isOverridden ? 'bg-purple-50' : hasWarning ? 'bg-yellow-50' : ''
                   }
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{u.entryId.slice(0, 8)}…</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    <a
+                      href={entryUrl(spaceId, environment, u.entryId)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={u.entryId}
+                      className="text-blue-500 hover:underline hover:text-blue-700"
+                    >
+                      {u.entryId.slice(0, 8)}…
+                    </a>
+                  </td>
                   <td className="px-4 py-3 font-medium">{u.displayLabel}</td>
                   <td className="px-4 py-3 text-gray-400 italic">
                     {u.currentValue ? String(u.currentValue) : '—'}
@@ -173,28 +190,31 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
         </table>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          disabled={isApplying}
-          className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-        >
-          ← Back
-        </button>
-        <div className="flex-1" />
-        {!canApply && (
-          <p className="text-sm text-red-600">
-            {remainingErrors} error{remainingErrors !== 1 ? 's' : ''} must be resolved before applying.
-          </p>
-        )}
-        <button
-          onClick={() => onApply(finalUpdates)}
-          disabled={!canApply || isApplying}
-          className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isApplying ? 'Applying…' : `Apply ${finalUpdates.filter(u => u.errors.length === 0).length} updates`}
-        </button>
+      {/* Sticky actions */}
+      <div className="sticky bottom-0 -mx-4 px-4">
+        <div className="pointer-events-none h-8" style={{ background: 'linear-gradient(to bottom, rgba(249,250,251,0), rgb(249,250,251))' }} />
+        <div className="bg-gray-50 pb-6 pt-1 flex items-center gap-3">
+          <button
+            onClick={onBack}
+            disabled={isApplying}
+            className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          >
+            ← Back
+          </button>
+          <div className="flex-1" />
+          {!canApply && (
+            <p className="text-sm text-red-600">
+              {remainingErrors} error{remainingErrors !== 1 ? 's' : ''} must be resolved before applying.
+            </p>
+          )}
+          <button
+            onClick={() => onApply(finalUpdates)}
+            disabled={!canApply || isApplying}
+            className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isApplying ? 'Applying…' : `Apply ${finalUpdates.filter(u => u.errors.length === 0).length} updates`}
+          </button>
+        </div>
       </div>
     </div>
   );

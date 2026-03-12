@@ -18,7 +18,7 @@ interface TransformMeta {
 
 interface BootstrapData {
   contentTypes: ContentTypeSummary[];
-  transforms: TransformMeta[];
+  transforms?: TransformMeta[];
   spaceId: string;
   environment: string;
 }
@@ -87,7 +87,7 @@ export default function ConfigStep({ onSubmit }: Props) {
   }, [selectedCT]);
 
   const ct = data?.contentTypes.find((c) => c.id === selectedCT) ?? null;
-  const transform = data?.transforms.find((t) => t.id === selectedTransform) ?? null;
+  const transform = (data?.transforms ?? []).find((t) => t.id === selectedTransform) ?? null;
 
   const filteredCTs = useMemo(() => {
     if (!data) return [];
@@ -112,7 +112,7 @@ export default function ConfigStep({ onSubmit }: Props) {
   // Auto-clear selected transform when it becomes incompatible with the new target field
   useEffect(() => {
     if (selectedTransform && data) {
-      const t = data.transforms.find((x) => x.id === selectedTransform);
+      const t = (data.transforms ?? []).find((x) => x.id === selectedTransform);
       if (t && !transformAllowed(t)) setSelectedTransform('');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,7 +340,7 @@ export default function ConfigStep({ onSubmit }: Props) {
             <fieldset className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
               <legend className="px-1 text-sm font-semibold text-gray-700">3. Transform</legend>
               <div className="mt-3 space-y-2">
-                {data.transforms.map((t) => {
+                {(data.transforms ?? []).map((t) => {
                   const allowed = transformAllowed(t);
                   return (
                     <label

@@ -13,7 +13,8 @@ interface Props {
   onApply: (toDelete: CTDeleteOutcome[]) => void;
   onBack: () => void;
   isApplying: boolean;
-  applyPhaseLabel?: string | null;
+  /** 1 = omitting, 2 = removing, null = not in progress */
+  applyPhase?: 1 | 2 | null;
 }
 
 export default function DeleteFieldPreviewStep({
@@ -25,7 +26,7 @@ export default function DeleteFieldPreviewStep({
   onApply,
   onBack,
   isApplying,
-  applyPhaseLabel,
+  applyPhase,
 }: Props) {
   const toDelete = outcomes.filter((o) => o.status === 'delete');
   const notFound = outcomes.filter((o) => o.status === 'not-found');
@@ -132,9 +133,42 @@ export default function DeleteFieldPreviewStep({
         <p className="text-sm text-gray-500">The field was not found in any of the selected content types.</p>
       )}
 
-      {/* Actions */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
+      {/* Delete progress (shown while applying) */}
+      {isApplying && applyPhase && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-orange-600">
+            Deleting field — do not navigate away
+          </p>
+          <ol className="space-y-2">
+            {([
+              { phase: 1, label: 'Mark field as omitted', sublabel: 'Hides field from API responses while preserving data' },
+              { phase: 2, label: 'Remove field from schema', sublabel: 'Permanently removes field definition and all associated data' },
+            ] as const).map(({ phase, label, sublabel }) => {
+              const done = applyPhase > phase;
+              const active = applyPhase === phase;
+              return (
+                <li key={phase} className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold
+                    ${done ? 'bg-green-500 text-white' : active ? 'bg-orange-500 text-white animate-pulse' : 'bg-gray-200 text-gray-400'}`}>
+                    {done ? '✓' : phase}
+                  </span>
+                  <div>
+                    <p className={`text-sm font-medium ${active ? 'text-orange-800' : done ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {label}
+                    </p>
+                    <p className={`text-xs ${active ? 'text-orange-600' : 'text-gray-400'}`}>{sublabel}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {/* Sticky actions */}
+      <div className="sticky bottom-0 -mx-4 px-4">
+        <div className="pointer-events-none h-8" style={{ background: 'linear-gradient(to bottom, rgba(249,250,251,0), rgb(249,250,251))' }} />
+        <div className="bg-gray-50 pb-6 pt-1 flex items-center gap-3">
           <button type="button" onClick={onBack} disabled={isApplying} className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
             ← Back
           </button>
@@ -147,9 +181,6 @@ export default function DeleteFieldPreviewStep({
             {isApplying ? 'Deleting…' : `Delete from ${toDelete.length} content type${toDelete.length !== 1 ? 's' : ''} →`}
           </button>
         </div>
-        {applyPhaseLabel && (
-          <p className="text-xs text-gray-500 animate-pulse pl-1">{applyPhaseLabel}</p>
-        )}
       </div>
     </div>
   );

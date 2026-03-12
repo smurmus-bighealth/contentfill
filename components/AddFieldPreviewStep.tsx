@@ -122,24 +122,27 @@ export default function AddFieldPreviewStep({ field, outcomes, onApply, onBack, 
         <p className="text-sm text-gray-500">No content types selected.</p>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={isApplying}
-          className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-        >
-          ← Back
-        </button>
-        <button
-          type="button"
-          onClick={() => onApply(toAdd)}
-          disabled={!canApply || isApplying}
-          className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isApplying ? 'Applying…' : `Apply to ${toAdd.length} content type${toAdd.length !== 1 ? 's' : ''} →`}
-        </button>
+      {/* Sticky actions */}
+      <div className="sticky bottom-0 -mx-4 px-4">
+        <div className="pointer-events-none h-8" style={{ background: 'linear-gradient(to bottom, rgba(249,250,251,0), rgb(249,250,251))' }} />
+        <div className="bg-gray-50 pb-6 pt-1 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isApplying}
+            className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            onClick={() => onApply(toAdd)}
+            disabled={!canApply || isApplying}
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isApplying ? 'Applying…' : `Apply to ${toAdd.length} content type${toAdd.length !== 1 ? 's' : ''} →`}
+          </button>
+        </div>
       </div>
     </div>
   );
