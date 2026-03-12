@@ -6,7 +6,7 @@
 
 ---
 
-**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🔒 Security](#-security)
+**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🔒 Security](#-security) &nbsp;·&nbsp; [🎨 Preview](#️-preview)
 
 ---
 
@@ -195,3 +195,14 @@ The transform will automatically appear in the UI dropdown.
 ## 🌐 Locale
 
 Default locale is `en-US`. Change it in Step 1 options if your space uses a different primary locale.
+
+---
+
+## 🎨 Preview
+<img width="1840" height="1196" alt="update fields - 1" src="https://github.com/user-attachments/assets/fddee9a5-3fdc-4e6d-a236-f9990658bbfd" />
+<img width="1840" height="1196" alt="update fields - 2" src="https://github.com/user-attachments/assets/aa08e52a-233d-403c-a13f-1b2314e7597c" />
+<img width="1840" height="1196" alt="update fields - 3" src="https://github.com/user-attachments/assets/cf7d0437-7a66-4277-8382-c19d2d3baf68" />
+<img width="1840" height="1196" alt="add field" src="https://github.com/user-attachments/assets/18fca165-0067-4e16-ad52-d0795708665b" />
+<img width="1840" height="1196" alt="delete field" src="https://github.com/user-attachments/assets/e470b362-e100-472c-b97c-0d23f4097714" />
+<video src="https://github.com/user-attachments/assets/dc1f0a04-4c58-4a13-898d-ebc08184ae38" />
+
