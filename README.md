@@ -2,7 +2,7 @@
   <img src="public/contentfill.png" alt="Contentfill" width="320" />
 </div>
 
-A local admin UI for bulk Contentful schema and content migrations. Built with Next.js + Tailwind.
+<h3 align="center">A local admin UI for bulk Contentful schema and content migrations. Built with Next.js + Tailwind.</h3>
 
 ---
 
