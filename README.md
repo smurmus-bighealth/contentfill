@@ -6,7 +6,7 @@
 
 ---
 
-**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🔒 Security](#-security) &nbsp;·&nbsp; [🎨 Preview](#️-preview)
+**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🔒 Security](#-security) &nbsp;·&nbsp; [🎨 Preview](#-preview)
 
 ---
 
