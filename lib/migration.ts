@@ -91,10 +91,17 @@ export async function dryRun(plan: MigrationPlan): Promise<DryRunResult> {
 
   // Batch validation (cross-entry concerns like uniqueness)
   if (transform.validateBatch) {
-    const batchErrors = transform.validateBatch(results, plan.transformConfig, snapshots);
-    for (const { entryId, error } of batchErrors) {
-      const result = results.find((r) => r.entryId === entryId);
-      if (result) result.errors.push(error);
+    try {
+      const batchErrors = transform.validateBatch(results, plan.transformConfig, snapshots);
+      for (const { entryId, error } of batchErrors) {
+        const result = results.find((r) => r.entryId === entryId);
+        if (result) result.errors.push(error);
+      }
+    } catch (err) {
+      // Don't let a broken validateBatch block the preview — surface as a warning on every entry
+      for (const result of results) {
+        result.warnings.push(`Batch validation failed: ${String(err)}`);
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { checkAuth } from '@/lib/auth';
 import { getContentTypes, fetchContentTypesFresh, CT_CACHE_TAG } from '@/lib/contentful';
-import { TRANSFORMS } from '@/lib/transforms';
+import { TRANSFORMS, BROKEN_TRANSFORMS } from '@/lib/transforms';
 
 export async function GET(request: Request) {
   if (!checkAuth(request)) {
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
         configSchema: t.configSchema,
         targetFieldTypes: t.targetFieldTypes,
       })),
+      brokenTransforms: BROKEN_TRANSFORMS,
       spaceId: process.env.CONTENTFUL_SPACE_ID ?? '',
       environment: process.env.CONTENTFUL_ENVIRONMENT ?? 'master',
     });

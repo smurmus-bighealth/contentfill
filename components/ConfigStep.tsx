@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import type { ContentTypeSummary, ContentTypeField, SampleEntry } from '@/lib/contentful';
-import type { ConfigFieldDef } from '@/lib/transforms';
+import type { ConfigFieldDef, BrokenTransform } from '@/lib/transforms';
 import { groupContentTypes } from '@/lib/group-content-types';
 import ContentTypeInspector from './ContentTypeInspector';
 
@@ -19,6 +19,7 @@ interface TransformMeta {
 interface BootstrapData {
   contentTypes: ContentTypeSummary[];
   transforms?: TransformMeta[];
+  brokenTransforms?: BrokenTransform[];
   spaceId: string;
   environment: string;
 }
@@ -373,6 +374,23 @@ export default function ConfigStep({ onSubmit }: Props) {
                     </label>
                   );
                 })}
+                {/* Broken transforms — shown as non-selectable with the reason */}
+                {(data.brokenTransforms ?? []).map((t, i) => (
+                  <div
+                    key={t.id ?? `broken-${i}`}
+                    className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-3 opacity-80"
+                  >
+                    <span className="mt-0.5 text-red-400 text-sm font-bold shrink-0">✕</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-medium text-sm text-red-800">
+                        {t.label ?? t.id ?? 'Unknown transform'}
+                      </span>
+                      <span className="text-xs text-red-600">
+                        Failed to load: {t.reason}. Check the transform file and restart the server.
+                      </span>
+                    </span>
+                  </div>
+                ))}
               </div>
             </fieldset>
           )}
@@ -382,15 +400,18 @@ export default function ConfigStep({ onSubmit }: Props) {
             <fieldset className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
               <legend className="px-1 text-sm font-semibold text-gray-700">4. Transform options</legend>
               <div className="mt-3 space-y-4">
-                {transform.configSchema.map((field) => (
-                  <TransformConfigField
-                    key={field.id}
-                    def={field}
-                    value={transformConfig[field.id]}
-                    onChange={(v) => handleConfigChange(field.id, v)}
-                    ctFields={ct.fields}
-                  />
-                ))}
+                {Array.isArray(transform.configSchema) && transform.configSchema.length > 0
+                  ? transform.configSchema.map((field) => (
+                    <TransformConfigField
+                      key={field.id}
+                      def={field}
+                      value={transformConfig[field.id]}
+                      onChange={(v) => handleConfigChange(field.id, v)}
+                      ctFields={ct.fields}
+                    />
+                  ))
+                  : <p className="text-sm text-gray-400">No options for this transform.</p>
+                }
               </div>
             </fieldset>
           )}
@@ -514,6 +535,12 @@ function TransformConfigField({
               <option key={f.id} value={f.id}>{f.name} ({f.type})</option>
             ))}
         </select>
+      )}
+
+      {!['number', 'text', 'select', 'contentful-field'].includes(def.type) && (
+        <p className="mt-1 text-xs text-red-500">
+          Unknown input type <code className="rounded bg-red-50 px-1">{def.type}</code> — update the transform&apos;s configSchema.
+        </p>
       )}
     </div>
   );
