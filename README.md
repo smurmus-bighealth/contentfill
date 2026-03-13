@@ -220,6 +220,8 @@ The transform will automatically appear in the UI dropdown.
 
 **If a transform fails to load** (missing required fields, wrong types, duplicate ID), it appears in the UI as a non-selectable broken entry with the specific error, so you can fix it without restarting anything except the server. A `console.error` is also logged at startup. `apply()` errors are caught per-entry and shown as blocking errors in the preview. `validateBatch()` errors surface as per-entry warnings so the preview still loads.
 
+> **Planned:** A UI-driven flow for creating transforms in plain language — describe what you want in plain English and have the transform generated without writing any TypeScript. The backend endpoint (`/api/generate-transform`) already exists; the remaining work is the in-app UI for submitting a description, reviewing the generated code, and registering it without touching the filesystem.
+
 ---
 
 ## 🔒 Security
