@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 const ERROR_MESSAGES: Record<string, string> = {
-  // M4: AccessDenied is the generic code returned by our signIn callback.
+  // AccessDenied is the generic code returned by our signIn callback.
   // We don't distinguish "wrong space" from "no Contentful account" to avoid
   // leaking which specific check failed to the browser.
   AccessDenied: 'Access denied. Ensure your Contentful account has access to this space.',

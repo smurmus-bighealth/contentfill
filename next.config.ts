@@ -1,3 +1,4 @@
+import path from 'path';
 import type { NextConfig } from 'next';
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -19,6 +20,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Pin the project root explicitly so Next.js doesn't walk up to a parent
+  // workspace directory and get confused by other lockfiles there.
+  outputFileTracingRoot: path.join(__dirname),
   // Disable x-powered-by header (minor security hardening)
   poweredByHeader: false,
   async headers() {

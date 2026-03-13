@@ -119,15 +119,16 @@ export const authOptions: NextAuthOptions = {
         return {
           ...token,
           contentfulToken: account.access_token!,
-          // Default to 4 h if expires_at is absent — prevents perpetually valid tokens
+          // Default to 4 h if Contentful's token endpoint omits expires_at —
+          // prevents the expiry check below from never triggering.
           expiresAt: account.expires_at ?? Math.floor(Date.now() / 1000) + 4 * 60 * 60,
         };
       }
 
-      // Session maxAge handles the outer boundary; this inner check catches
+      // session.maxAge handles the outer boundary; this inner check catches
       // tokens that expire sooner than the session window.
       if (Date.now() >= token.expiresAt * 1000) {
-        // Contentful has no refresh mechanism — force re-login
+        // Contentful has no refresh mechanism — force re-login.
         return { ...token, error: 'RefreshTokenError' as const };
       }
 

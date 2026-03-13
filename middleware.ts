@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
 
   // ── OAuth mode ────────────────────────────────────────────────────────────
   if (IS_OAUTH_MODE) {
-    // C2 fix: pass secret explicitly — don't rely on implicit env var resolution
+    // Pass secret explicitly — don't rely on implicit env var resolution
     // in the Next.js Edge runtime, where variable lookup order is less predictable.
     const token = await getToken({
       req: request,
@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
 
   const provided =
     request.headers.get('x-admin-secret') ??
-    // M1 fix: case-insensitive match for the Bearer prefix (RFC 7230 §3.2)
+    // Case-insensitive match for the Bearer prefix (RFC 7230 §3.2)
     request.headers.get('authorization')?.replace(/^Bearer /i, '');
 
   if (provided !== secret) {

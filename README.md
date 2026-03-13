@@ -2,7 +2,7 @@
   <img src="public/contentfill.png" alt="Contentfill" width="320" />
 </div>
 
-<h3 align="center">A local admin UI for bulk Contentful schema and content migrations. Built with Next.js + Tailwind.</h3>
+<h3 align="center">A bulk Contentful schema and content migration tool. Built with Next.js + Tailwind.</h3>
 
 ---
 
@@ -48,7 +48,7 @@ The environment the app is pointed at is shown in the header badge so you always
 ┌─────────────────────▼───────────────────────────────────────┐
 │  Next.js API Routes  (server — CMA token never leaves here) │
 │                                                             │
-│  GET  /api/content-types   ── cached, tag-invalidated       │
+│  GET  /api/content-types   ── bootstrap data                │
 │  POST /api/preview         ── dry-run, zero writes          │
 │  POST /api/apply           ── bulk update + publish         │
 │  POST /api/schema-apply    ── add field to N content types  │
@@ -82,37 +82,74 @@ The environment the app is pointed at is shown in the header badge so you always
 
 ## 🛠 Setup
 
-### 1. Get a Contentful Management Token
+### Local development
 
-Contentful dashboard → **Settings → API keys → Content management tokens → Generate personal token**
+1. **Get a Contentful Management Token**
 
-This is a write-access token — keep it out of git.
+   Contentful dashboard → **Settings → API keys → Content management tokens → Generate personal token**
 
-### 2. Configure environment
+   This is a write-access token — keep it out of git.
 
-```bash
-cp .env.example .env
-```
+2. **Configure environment**
 
-Edit `.env`:
+   ```bash
+   cp .env.example .env
+   ```
 
-```
-CONTENTFUL_MANAGEMENT_TOKEN=your_cma_token
-CONTENTFUL_SPACE_ID=your_space_id
-CONTENTFUL_ENVIRONMENT=master            # or staging, sandbox, etc.
-```
+   Edit `.env`:
 
-> **Tip:** Run against a non-production environment first (`staging`, `sandbox`) to validate before touching `master`.
+   ```
+   CONTENTFUL_MANAGEMENT_TOKEN=your_cma_token
+   CONTENTFUL_SPACE_ID=your_space_id
+   CONTENTFUL_ENVIRONMENT=master   # or staging, sandbox, etc.
+   ```
 
-### 3. Install and run
+   > **Tip:** Run against a non-production environment first (`staging`, `sandbox`) to validate before touching `master`.
 
-```bash
-npm install -g pnpm   # if you don't have pnpm
-pnpm install
-pnpm dev
-```
+3. **Install and run**
 
-Open [http://localhost:3000](http://localhost:3000).
+   ```bash
+   npm install -g pnpm   # if you don't have pnpm
+   pnpm install
+   pnpm dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000). No login screen — the management token in `.env` is the credential gate.
+
+---
+
+### Deploying (Vercel or similar)
+
+For a shared or team deployment, use Contentful OAuth so each person authenticates with their own Contentful account. The app verifies they're a member of the configured space; Contentful's own RBAC enforces what they can actually do.
+
+1. **Create a Contentful OAuth app**
+
+   Go to **https://app.contentful.com/account/profile/developers/applications/new** and create a new application. Set the redirect URI to:
+
+   ```
+   https://your-deployed-domain.com/api/auth/callback/contentful
+   ```
+
+   Note the **Client ID** and **Client Secret**.
+
+2. **Set environment variables on your host**
+
+   ```
+   CONTENTFUL_SPACE_ID=your_space_id
+   CONTENTFUL_ENVIRONMENT=master
+
+   CONTENTFUL_OAUTH_CLIENT_ID=your_client_id
+   CONTENTFUL_OAUTH_CLIENT_SECRET=your_client_secret
+
+   NEXTAUTH_URL=https://your-deployed-domain.com
+   NEXTAUTH_SECRET=                              # openssl rand -base64 32
+   ```
+
+   Do **not** set `CONTENTFUL_MANAGEMENT_TOKEN` on the deployed host — in OAuth mode it isn't used and shouldn't be there.
+
+3. **Deploy**
+
+   Users visiting the app will be redirected to a login page and must sign in with their Contentful account. Access is granted only to members of the configured space.
 
 ---
 
@@ -156,7 +193,7 @@ After applying, the app patches only the affected content types in its local cac
 
 ## 🗄 Cache & Refresh
 
-Content type schemas are cached server-side (1 hour TTL) and client-side in `sessionStorage`. After any schema mutation (add or delete field), the app automatically patches only the affected types in both caches — no extra API calls.
+Content type schemas are cached client-side in `sessionStorage`. After any schema mutation (add or delete field), the app automatically patches only the affected types in the cache — no extra API calls.
 
 To force a full refresh from Contentful (e.g. after a change made outside this tool), click the **↻ Refresh** button next to the workflow tabs.
 
@@ -186,9 +223,22 @@ The transform will automatically appear in the UI dropdown.
 
 ## 🔒 Security
 
-- The CMA token is **server-side only** — it never leaves the API routes
-- For local dev, no additional auth is needed (localhost is the protection)
-- To deploy to a shared/public URL: set `ADMIN_SECRET=some_strong_value` in your deployment environment. The UI will prompt for this value before making any API calls.
+The app runs in one of two modes depending on which environment variables are set.
+
+### OAuth mode (deployed — recommended)
+
+When `CONTENTFUL_OAUTH_CLIENT_ID` is set, every route is protected by a NextAuth session. Unauthenticated requests to pages are redirected to `/login`; unauthenticated API requests return 401.
+
+- Users sign in with their own Contentful account via OAuth. The app verifies they are a member of the configured space before creating a session.
+- Each user's personal CMA token (obtained via OAuth) is used for all Contentful API calls — it is stored encrypted in an HttpOnly session cookie using `NEXTAUTH_SECRET` as the key and never exposed to client-side JavaScript.
+- Contentful's own RBAC enforces what each user can actually do. A read-only member who logs in will get 403s from Contentful if they attempt write operations.
+- Sessions expire after 8 hours. Contentful does not support OAuth token refresh, so users must re-authenticate after expiry.
+
+### Local / simple mode
+
+When `CONTENTFUL_OAUTH_CLIENT_ID` is not set, the app falls back to a personal access token in `CONTENTFUL_MANAGEMENT_TOKEN`. For local dev this is sufficient — the token is server-side only and never sent to the browser.
+
+For a simple single-user deployment without OAuth, set `ADMIN_SECRET` to add a password gate on all API routes.
 
 ---
 
@@ -205,4 +255,3 @@ Default locale is `en-US`. Change it in Step 1 options if your space uses a diff
 <img width="1840" height="1196" alt="add field" src="https://github.com/user-attachments/assets/18fca165-0067-4e16-ad52-d0795708665b" />
 <img width="1840" height="1196" alt="delete field" src="https://github.com/user-attachments/assets/e470b362-e100-472c-b97c-0d23f4097714" />
 <video src="https://github.com/user-attachments/assets/dc1f0a04-4c58-4a13-898d-ebc08184ae38" />
-

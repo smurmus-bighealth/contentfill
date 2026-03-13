@@ -10,7 +10,7 @@ function requireEnv(key: string): string {
  * Per-token cache of the Contentful environment handle to avoid redundant
  * getSpace + getEnvironment API calls on every request.
  *
- * M3: Entries are evicted on any error during construction so a revoked or
+ * Entries are evicted on any error during construction so a revoked or
  * expired token never leaves a stale handle in the cache. The cache is
  * process-scoped; a process restart clears it completely.
  */
@@ -28,7 +28,7 @@ export async function getEnvironment(token: string): Promise<Environment> {
     _envCache.set(token, env);
     return env;
   } catch (err) {
-    // M3: never cache a failed construction — ensures a revoked token
+    // Never cache a failed construction — ensures a revoked token
     // doesn't persist in the cache waiting for a process restart.
     _envCache.delete(token);
     throw err;
