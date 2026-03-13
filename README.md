@@ -99,6 +99,7 @@ The environment the app is pointed at is shown in the header badge so you always
    Edit `.env`:
 
    ```
+   AUTH_SECRET=any_random_string_here   # required even in local dev
    CONTENTFUL_MANAGEMENT_TOKEN=your_cma_token
    CONTENTFUL_SPACE_ID=your_space_id
    CONTENTFUL_ENVIRONMENT=master   # or staging, sandbox, etc.
