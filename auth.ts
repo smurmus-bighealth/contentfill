@@ -11,8 +11,8 @@ import type { NextAuthConfig } from 'next-auth';
  *
  * ── Security posture ─────────────────────────────────────────────────────
  *
- * PKCE: Not applicable. Contentful's authorization server does not document
- *   PKCE support. We use authorization_code flow which works in practice.
+ * PKCE: Contentful's authorization server does not support PKCE, so we use
+ *   plain authorization_code flow without a code_challenge.
  *
  * Refresh tokens: Not supported. Contentful does not issue refresh tokens.
  *   Sessions hard-expire at maxAge (8 hours) and users must re-authenticate.
@@ -113,7 +113,7 @@ const config: NextAuthConfig = {
 
       // session.maxAge handles the outer boundary; this inner check catches
       // tokens that expire sooner than the session window.
-      if (Date.now() >= (token.expiresAt as number) * 1000) {
+      if (typeof token.expiresAt === 'number' && Date.now() >= token.expiresAt * 1000) {
         return { ...token, error: 'RefreshTokenError' as const };
       }
 

@@ -22,11 +22,20 @@ export async function POST(req: NextRequest) {
       fieldId: string;
       phase: 'omit' | 'remove';
     };
+
+    if (phase !== 'omit' && phase !== 'remove') {
+      return NextResponse.json({ error: 'phase must be "omit" or "remove"' }, { status: 400 });
+    }
+
     const result = phase === 'omit'
       ? await omitField(selectedCTs, fieldId, token)
       : await removeField(selectedCTs, fieldId, token);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/schema-delete]', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 },
+    );
   }
 }

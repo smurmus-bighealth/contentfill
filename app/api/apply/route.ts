@@ -42,6 +42,10 @@ export async function POST(request: Request) {
     const result = await applyMigration(plan, updates, token);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/apply]', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 },
+    );
   }
 }

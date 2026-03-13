@@ -5,9 +5,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getContentfulToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
-  // Gate this route the same as all other API routes.
-  // Without auth, an unauthenticated caller on a local/simple deployment
-  // could exhaust the ANTHROPIC_API_KEY with arbitrary requests.
+  // Gate this route the same as all other API routes — an unauthenticated
+  // caller in local dev mode could otherwise exhaust the ANTHROPIC_API_KEY.
   const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,6 +21,19 @@ export async function POST(req: NextRequest) {
       description: string;
       fields: string[];
     };
+
+    if (typeof description !== 'string' || description.length > 2000) {
+      return NextResponse.json(
+        { error: 'description must be a string under 2000 characters' },
+        { status: 400 },
+      );
+    }
+    if (!Array.isArray(fields) || fields.length > 200) {
+      return NextResponse.json(
+        { error: 'fields must be an array with at most 200 entries' },
+        { status: 400 },
+      );
+    }
 
     const templatePath = join(process.cwd(), 'lib', 'transforms', '_template.ts');
     const template = await readFile(templatePath, 'utf-8');
@@ -66,6 +78,10 @@ Rules:
 
     return NextResponse.json({ code });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/generate-transform]', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 },
+    );
   }
 }

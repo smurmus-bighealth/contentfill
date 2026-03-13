@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
     const result = await applySchemaChange(selectedCTs, field, token);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/schema-apply]', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 },
+    );
   }
 }

@@ -99,7 +99,7 @@ The environment the app is pointed at is shown in the header badge so you always
    Edit `.env`:
 
    ```
-   AUTH_SECRET=any_random_string_here   # required even in local dev
+   AUTH_SECRET=<output of: openssl rand -base64 32>
    CONTENTFUL_MANAGEMENT_TOKEN=your_cma_token
    CONTENTFUL_SPACE_ID=your_space_id
    CONTENTFUL_ENVIRONMENT=master   # or staging, sandbox, etc.
@@ -228,7 +228,7 @@ The app runs in one of two modes depending on which environment variables are se
 
 ### OAuth mode (deployed — recommended)
 
-When `CONTENTFUL_OAUTH_CLIENT_ID` is set, every route is protected by a NextAuth session. Unauthenticated requests to pages are redirected to `/login`; unauthenticated API requests return 401.
+When `CONTENTFUL_OAUTH_CLIENT_ID` is set, every route is protected by an Auth.js session. Unauthenticated requests to pages are redirected to `/login`; unauthenticated API requests return 401.
 
 - Users sign in with their own Contentful account via OAuth. The app verifies they are a member of the configured space before creating a session.
 - Each user's personal CMA token (obtained via OAuth) is used for all Contentful API calls — it is stored encrypted in an HttpOnly session cookie using `AUTH_SECRET` as the key and never exposed to client-side JavaScript.
