@@ -1,27 +1,10 @@
-import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import NextAuth from 'next-auth';
+import { authConfig } from './auth.config';
 
-export default auth(function middleware(req) {
-  const { pathname } = req.nextUrl;
-
-  // ── Local dev mode (no OAuth configured) ─────────────────────────────────
-  // Open — CONTENTFUL_MANAGEMENT_TOKEN in .env is the credential gate.
-  if (!process.env.CONTENTFUL_OAUTH_CLIENT_ID) {
-    return NextResponse.next();
-  }
-
-  // ── OAuth mode ────────────────────────────────────────────────────────────
-  // req.auth is populated by Auth.js v5 from the encrypted session cookie.
-  // Auth.js v5 automatically passes through /api/auth/** routes.
-  if (!req.auth || req.auth.error === 'RefreshTokenError') {
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-
-  return NextResponse.next();
-});
+// Use the Edge-compatible config subset (no OAuth provider, no Node.js APIs).
+// The authorized() callback in authConfig handles all access control logic.
+// See auth.config.ts for details on the split-config pattern.
+export default NextAuth(authConfig).auth;
 
 export const config = {
   // Exclude Next.js internals and known public assets.

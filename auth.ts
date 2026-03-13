@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import type { NextAuthConfig } from 'next-auth';
+import { authConfig } from './auth.config';
 
 /**
  * Auth.js v5 configuration with a custom Contentful OAuth 2.0 provider.
@@ -29,6 +30,8 @@ import type { NextAuthConfig } from 'next-auth';
  *     AUTH_SECRET (openssl rand -base64 32), AUTH_URL (your deploy URL)
  */
 const config: NextAuthConfig = {
+  ...authConfig,
+
   providers: [
     {
       id: 'contentful',
@@ -129,11 +132,7 @@ const config: NextAuthConfig = {
     },
   },
 
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
-
+  // pages are inherited from authConfig.
   // Set AUTH_LOG_LEVEL=debug in Vercel env vars to enable verbose logging.
 };
 
