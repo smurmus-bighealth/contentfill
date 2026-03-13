@@ -1,4 +1,4 @@
-import { getToken } from 'next-auth/jwt';
+import { decode } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -21,15 +21,31 @@ export async function middleware(request: NextRequest) {
 
   // ── OAuth mode ────────────────────────────────────────────────────────────
   if (IS_OAUTH_MODE) {
-    // Pass secret and secureCookie explicitly.
-    // The Edge runtime may detect the protocol differently from the Node.js API
-    // route that set the cookie, causing getToken() to look for the wrong cookie
-    // name. NEXTAUTH_URL starting with https means the __Secure- prefix is used.
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NEXTAUTH_URL?.startsWith('https://') ?? true,
-    });
+    // Use decode() directly rather than getToken(). getToken() internally calls
+    // decode() after reading the cookie — the two steps are equivalent.
+    // getToken() fails in the Next.js 15 Edge runtime even when the cookie is
+    // present (likely an internal cookie-resolution issue); doing both steps
+    // manually avoids this while preserving the same security properties:
+    //   • decode() uses jose jwtDecrypt, which validates the NEXTAUTH_SECRET,
+    //     exp claim, and nbf claim — forged or expired tokens are rejected.
+    //   • Tokens with RefreshTokenError are treated as invalid (re-auth required).
+    const isSecure = process.env.NEXTAUTH_URL?.startsWith('https://') ?? true;
+    const cookieName = isSecure
+      ? '__Secure-next-auth.session-token'
+      : 'next-auth.session-token';
+
+    const rawToken = request.cookies.get(cookieName)?.value;
+    let token: Awaited<ReturnType<typeof decode>> = null;
+    if (rawToken) {
+      try {
+        token = await decode({
+          token: rawToken,
+          secret: process.env.NEXTAUTH_SECRET!,
+        });
+      } catch {
+        token = null;
+      }
+    }
 
     if (!token || token.error === 'RefreshTokenError') {
       if (pathname.startsWith('/api/')) {
