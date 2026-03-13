@@ -21,7 +21,7 @@ function LoginContent() {
   const errorMessage = error ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.Default) : null;
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+    <main className="flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 w-full max-w-sm flex flex-col gap-6">
         {/* Logo / wordmark */}
         <div className="text-center">

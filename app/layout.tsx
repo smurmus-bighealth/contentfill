@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,7 +15,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
         <header className="border-b border-gray-200 bg-white">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-            <Image src="/contentfill.png" alt="Contentfill" width={140} height={32} className="h-8 w-auto" priority />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/contentfill.png" alt="Contentfill" className="h-8 w-auto" />
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isMaster
                 ? 'bg-green-100 text-green-700'
