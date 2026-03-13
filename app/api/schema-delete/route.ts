@@ -11,7 +11,7 @@ import { omitField, removeField } from '@/lib/schema-migration';
  *   Phase 'remove' — removes field from the schema array and publishes
  */
 export async function POST(req: NextRequest) {
-  const token = await getContentfulToken(req);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

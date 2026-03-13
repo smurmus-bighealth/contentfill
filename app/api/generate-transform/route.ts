@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   // Gate this route the same as all other API routes.
   // Without auth, an unauthenticated caller on a local/simple deployment
   // could exhaust the ANTHROPIC_API_KEY with arbitrary requests.
-  const token = await getContentfulToken(req);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

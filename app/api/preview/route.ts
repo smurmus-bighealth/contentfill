@@ -3,7 +3,7 @@ import { getContentfulToken } from '@/lib/auth';
 import { dryRun, type MigrationPlan } from '@/lib/migration';
 
 export async function POST(request: Request) {
-  const token = await getContentfulToken(request);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

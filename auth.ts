@@ -1,37 +1,34 @@
-import type { NextAuthOptions } from 'next-auth';
+import NextAuth from 'next-auth';
+import type { NextAuthConfig } from 'next-auth';
 
 /**
- * NextAuth configuration with a custom Contentful OAuth 2.0 provider.
+ * Auth.js v5 configuration with a custom Contentful OAuth 2.0 provider.
  *
  * After sign-in, the user's personal CMA access token is stored in the
  * encrypted JWT session cookie and used for all Contentful API calls.
- * This means Contentful's own RBAC enforces what the user can actually do —
- * a read-only member cannot write, regardless of what the UI exposes.
+ * Contentful's own RBAC enforces what each user can actually do —
+ * a read-only member cannot write regardless of what the UI exposes.
  *
- * ── Security posture notes ────────────────────────────────────────────────
+ * ── Security posture ─────────────────────────────────────────────────────
  *
- * PKCE: Not applicable. Contentful's authorization server only documents the
- *   implicit grant (response_type=token). PKCE requires authorization code
- *   flow, which Contentful does not expose. We use response_type=code because
- *   NextAuth requires it for server-side token exchange; verify this works
- *   against your Contentful OAuth app's redirect URI before deploying.
+ * PKCE: Not applicable. Contentful's authorization server does not document
+ *   PKCE support. We use authorization_code flow which works in practice.
  *
- * Refresh tokens: Not supported. Contentful does not issue refresh tokens
- *   (no offline_access scope, no documented token refresh endpoint). Sessions
- *   are hard-expired at maxAge (8 hours) and users must re-authenticate.
+ * Refresh tokens: Not supported. Contentful does not issue refresh tokens.
+ *   Sessions hard-expire at maxAge (8 hours) and users must re-authenticate.
  *
- * Token scope: content_management_manage grants org-wide CMA access (not
- *   scoped to a single space). The token is stored only in an encrypted
- *   HttpOnly cookie; Contentful's RBAC is the enforcement boundary.
+ * Token scope: content_management_manage grants org-wide CMA access.
+ *   The token is stored only in an encrypted HttpOnly cookie (AUTH_SECRET).
+ *   Contentful's RBAC is the enforcement boundary.
  *
  * ── Setup (one-time, per deployment) ─────────────────────────────────────
  *  1. Create an OAuth app at:
  *     https://app.contentful.com/account/profile/developers/applications/new
  *  2. Set Redirect URI to: {YOUR_URL}/api/auth/callback/contentful
  *  3. Set env vars: CONTENTFUL_OAUTH_CLIENT_ID, CONTENTFUL_OAUTH_CLIENT_SECRET,
- *     NEXTAUTH_SECRET (openssl rand -base64 32), NEXTAUTH_URL (your deploy URL)
+ *     AUTH_SECRET (openssl rand -base64 32), AUTH_URL (your deploy URL)
  */
-export const authOptions: NextAuthOptions = {
+const config: NextAuthConfig = {
   providers: [
     {
       id: 'contentful',
@@ -47,7 +44,7 @@ export const authOptions: NextAuthOptions = {
       token: 'https://be.contentful.com/oauth/token',
       userinfo: {
         url: 'https://api.contentful.com/users/me',
-        async request({ tokens }) {
+        async request({ tokens }: { tokens: { access_token?: string } }) {
           const res = await fetch('https://api.contentful.com/users/me', {
             headers: { Authorization: `Bearer ${tokens.access_token}` },
           });
@@ -62,8 +59,8 @@ export const authOptions: NextAuthOptions = {
           image: profile.avatarUrl ?? null,
         };
       },
-      clientId: process.env.CONTENTFUL_OAUTH_CLIENT_ID!,
-      clientSecret: process.env.CONTENTFUL_OAUTH_CLIENT_SECRET!,
+      clientId: process.env.CONTENTFUL_OAUTH_CLIENT_ID,
+      clientSecret: process.env.CONTENTFUL_OAUTH_CLIENT_SECRET,
     },
   ],
 
@@ -77,12 +74,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     /**
      * Verify the user is a member of the configured Contentful space.
-     * This runs once on sign-in before the session is created.
-     *
-     * Note: GET /spaces/{id} returns 200 for any member role (including
-     * read-only). Contentful's API does not allow checking a user's specific
-     * role without admin access to /space_members. Write permissions are
-     * enforced naturally by Contentful's CMA when the user attempts mutations.
+     * Runs once on sign-in before the session is created.
      */
     async signIn({ account }) {
       if (!account?.access_token) return false;
@@ -105,30 +97,23 @@ export const authOptions: NextAuthOptions = {
     /**
      * Persist the Contentful CMA token into the encrypted JWT.
      *
-     * Contentful does not issue refresh tokens, so this callback only stores
-     * the token on initial sign-in and enforces expiry on every subsequent
-     * request. When the session's maxAge elapses, NextAuth invalidates it and
-     * the middleware redirects to /login.
-     *
-     * C1 fix: always set expiresAt so the expiry check never short-circuits.
-     * Default to 4 hours if Contentful's token endpoint doesn't return expires_at
-     * (conservative — well within the 8-hour session maxAge).
+     * Only stores the token on initial sign-in; enforces expiry on every
+     * subsequent request. When maxAge elapses, Auth.js invalidates the session
+     * and middleware redirects to /login.
      */
     async jwt({ token, account }) {
       if (account) {
         return {
           ...token,
           contentfulToken: account.access_token!,
-          // Default to 4 h if Contentful's token endpoint omits expires_at —
-          // prevents the expiry check below from never triggering.
+          // Default to 4 h if Contentful's token endpoint omits expires_at.
           expiresAt: account.expires_at ?? Math.floor(Date.now() / 1000) + 4 * 60 * 60,
         };
       }
 
       // session.maxAge handles the outer boundary; this inner check catches
       // tokens that expire sooner than the session window.
-      if (Date.now() >= token.expiresAt * 1000) {
-        // Contentful has no refresh mechanism — force re-login.
+      if (Date.now() >= (token.expiresAt as number) * 1000) {
         return { ...token, error: 'RefreshTokenError' as const };
       }
 
@@ -136,11 +121,11 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      session.contentfulToken = token.contentfulToken;
-      if (token.error) {
-        (session as unknown as Record<string, unknown>).error = token.error;
-      }
-      return session;
+      return {
+        ...session,
+        contentfulToken: token.contentfulToken as string,
+        ...(token.error ? { error: token.error } : {}),
+      };
     },
   },
 
@@ -149,8 +134,7 @@ export const authOptions: NextAuthOptions = {
     error: '/login',
   },
 
-  // Set NEXTAUTH_DEBUG=1 in Vercel env vars to enable verbose callback logging.
-  debug: process.env.NEXTAUTH_DEBUG === '1',
-
-  secret: process.env.NEXTAUTH_SECRET,
+  // Set AUTH_LOG_LEVEL=debug in Vercel env vars to enable verbose logging.
 };
+
+export const { handlers, auth, signIn, signOut } = NextAuth(config);

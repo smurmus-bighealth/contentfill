@@ -3,7 +3,7 @@ import { getContentfulToken } from '@/lib/auth';
 import { getSampleEntry } from '@/lib/contentful';
 
 export async function GET(request: Request) {
-  const token = await getContentfulToken(request);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

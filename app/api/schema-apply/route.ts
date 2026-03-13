@@ -4,7 +4,7 @@ import { applySchemaChange } from '@/lib/schema-migration';
 import type { NewFieldDefinition } from '@/lib/schema-migration';
 
 export async function POST(req: NextRequest) {
-  const token = await getContentfulToken(req);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

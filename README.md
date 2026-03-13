@@ -141,8 +141,8 @@ For a shared or team deployment, use Contentful OAuth so each person authenticat
    CONTENTFUL_OAUTH_CLIENT_ID=your_client_id
    CONTENTFUL_OAUTH_CLIENT_SECRET=your_client_secret
 
-   NEXTAUTH_URL=https://your-deployed-domain.com
-   NEXTAUTH_SECRET=                              # openssl rand -base64 32
+   AUTH_URL=https://your-deployed-domain.com
+   AUTH_SECRET=                                  # openssl rand -base64 32
    ```
 
    Do **not** set `CONTENTFUL_MANAGEMENT_TOKEN` on the deployed host — in OAuth mode it isn't used and shouldn't be there.
@@ -230,7 +230,7 @@ The app runs in one of two modes depending on which environment variables are se
 When `CONTENTFUL_OAUTH_CLIENT_ID` is set, every route is protected by a NextAuth session. Unauthenticated requests to pages are redirected to `/login`; unauthenticated API requests return 401.
 
 - Users sign in with their own Contentful account via OAuth. The app verifies they are a member of the configured space before creating a session.
-- Each user's personal CMA token (obtained via OAuth) is used for all Contentful API calls — it is stored encrypted in an HttpOnly session cookie using `NEXTAUTH_SECRET` as the key and never exposed to client-side JavaScript.
+- Each user's personal CMA token (obtained via OAuth) is used for all Contentful API calls — it is stored encrypted in an HttpOnly session cookie using `AUTH_SECRET` as the key and never exposed to client-side JavaScript.
 - Contentful's own RBAC enforces what each user can actually do. A read-only member who logs in will get 403s from Contentful if they attempt write operations.
 - Sessions expire after 8 hours. Contentful does not support OAuth token refresh, so users must re-authenticate after expiry.
 

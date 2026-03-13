@@ -9,7 +9,7 @@ interface ApplyBody {
 }
 
 export async function POST(request: Request) {
-  const token = await getContentfulToken(request);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

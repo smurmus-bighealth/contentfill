@@ -4,7 +4,7 @@ import { getContentTypes, fetchContentTypesFresh } from '@/lib/contentful';
 import { TRANSFORMS, BROKEN_TRANSFORMS } from '@/lib/transforms';
 
 export async function GET(request: Request) {
-  const token = await getContentfulToken(request);
+  const token = await getContentfulToken();
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
