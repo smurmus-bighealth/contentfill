@@ -2,24 +2,16 @@ import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
 export default auth(function middleware(req) {
-  const { pathname } = req.nextUrl;
-
-  // ── Local dev mode (no OAuth configured) ─────────────────────────────────
-  // CONTENTFUL_MANAGEMENT_TOKEN is the credential gate: only allow access if
-  // the token is actually configured.
+  // Local dev mode: CONTENTFUL_MANAGEMENT_TOKEN is the only credential gate.
   if (!process.env.CONTENTFUL_OAUTH_CLIENT_ID) {
-    if (!process.env.CONTENTFUL_MANAGEMENT_TOKEN) {
-      return NextResponse.redirect(new URL('/login', req.url));
-    }
-    return NextResponse.next();
+    return process.env.CONTENTFUL_MANAGEMENT_TOKEN
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // ── OAuth mode ────────────────────────────────────────────────────────────
-  // Auth.js v5 passes /api/auth/** routes through to the route handler without
-  // calling this callback, so sign-in/callback routes are never blocked here.
-  const session = req.auth;
-  if (!session || session.error === 'RefreshTokenError') {
-    if (pathname.startsWith('/api/')) {
+  // OAuth mode: req.auth is the decrypted session, null if unauthenticated.
+  if (!req.auth || req.auth.error === 'RefreshTokenError') {
+    if (req.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', req.url));
@@ -29,5 +21,12 @@ export default auth(function middleware(req) {
 });
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|contentfill\\.png|logo\\.png).*)'],
+  matcher: [
+    // Run on all routes except:
+    //   _next/static, _next/image  — Next.js internals
+    //   favicon.ico, *.png         — static assets
+    //   login                      — public page; must never be blocked or it loops
+    //   api/auth                   — Auth.js route handler; middleware must not intercept
+    '/((?!_next/static|_next/image|favicon\\.ico|contentfill\\.png|logo\\.png|login|api/auth).*)',
+  ],
 };
