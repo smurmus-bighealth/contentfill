@@ -149,5 +149,8 @@ export const authOptions: NextAuthOptions = {
     error: '/login',
   },
 
+  // Set NEXTAUTH_DEBUG=1 in Vercel env vars to enable verbose callback logging.
+  debug: process.env.NEXTAUTH_DEBUG === '1',
+
   secret: process.env.NEXTAUTH_SECRET,
 };

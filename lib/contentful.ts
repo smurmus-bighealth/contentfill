@@ -52,9 +52,6 @@ export interface ContentTypeSummary {
   fields: ContentTypeField[];
 }
 
-/** Kept for import compatibility with routes that call revalidateTag. */
-export const CT_CACHE_TAG = 'contentful:content-types';
-
 export type RawEntry = Awaited<ReturnType<Environment['getEntries']>>['items'][number];
 export type RawContentType = Awaited<ReturnType<Environment['getContentTypes']>>['items'][number];
 

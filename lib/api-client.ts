@@ -1,19 +1,11 @@
 /**
  * Client-side fetch helper.
  *
- * In OAuth mode, authentication is handled via the NextAuth session cookie —
- * no explicit header is needed. On a 401 (expired/invalid session), the user
- * is redirected to the login page.
- *
- * In local/simple mode, the optional admin secret is still attached via header
- * (stored in sessionStorage under 'admin-secret').
+ * Authentication is handled via the NextAuth session cookie in OAuth mode,
+ * or implicitly via the server-side management token in local dev — no
+ * explicit auth header is attached here. On a 401, the user is redirected
+ * to the login page (OAuth mode) or sees an error (local dev misconfiguration).
  */
-
-function getAdminHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const secret = sessionStorage.getItem('admin-secret');
-  return secret ? { 'x-admin-secret': secret } : {};
-}
 
 export class ApiError extends Error {
   constructor(
@@ -35,16 +27,12 @@ export async function apiFetch<T = unknown>(
     ...rest,
     ...(isJson && { body: JSON.stringify(json) }),
     headers: {
-      ...getAdminHeaders(),
       ...(isJson && { 'Content-Type': 'application/json' }),
       ...options.headers,
     },
   });
 
   if (response.status === 401) {
-    // In OAuth mode: session expired or invalid — redirect to login.
-    // In local mode: admin secret was wrong — clear it from storage.
-    sessionStorage.removeItem('admin-secret');
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login';
     }

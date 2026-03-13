@@ -238,7 +238,7 @@ When `CONTENTFUL_OAUTH_CLIENT_ID` is set, every route is protected by a NextAuth
 
 When `CONTENTFUL_OAUTH_CLIENT_ID` is not set, the app falls back to a personal access token in `CONTENTFUL_MANAGEMENT_TOKEN`. For local dev this is sufficient — the token is server-side only and never sent to the browser.
 
-For a simple single-user deployment without OAuth, set `ADMIN_SECRET` to add a password gate on all API routes.
+For local dev, the management token in `CONTENTFUL_MANAGEMENT_TOKEN` is the credential gate — no additional auth layer is applied.
 
 ---
 

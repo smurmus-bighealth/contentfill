@@ -11,9 +11,9 @@ import { authOptions } from './nextauth';
  *   Contentful's own RBAC enforces their permissions — a read-only member
  *   cannot write, regardless of what the UI offers.
  *
- * Local / simple mode (no OAuth configured):
- *   Falls back to CONTENTFUL_MANAGEMENT_TOKEN from env, optionally gated
- *   by ADMIN_SECRET (the original behaviour for local dev / simple deploys).
+ * Local dev mode (no OAuth configured):
+ *   Uses CONTENTFUL_MANAGEMENT_TOKEN from env directly. The token itself
+ *   is the credential gate — no additional auth check is performed.
  *
  * Returns null when the caller should respond 401.
  */
@@ -23,10 +23,6 @@ export async function getContentfulToken(request: Request): Promise<string | nul
     return session?.contentfulToken ?? null;
   }
 
-  // Local / simple mode
-  const secret = process.env.ADMIN_SECRET;
-  if (secret && request.headers.get('x-admin-secret') !== secret) {
-    return null;
-  }
+  // Local dev mode — no auth check, management token is the gate
   return process.env.CONTENTFUL_MANAGEMENT_TOKEN ?? null;
 }

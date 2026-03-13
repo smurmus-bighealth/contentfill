@@ -7,18 +7,28 @@ const IS_OAUTH_MODE = !!process.env.CONTENTFUL_OAUTH_CLIENT_ID;
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow the NextAuth routes and the login page through
-  if (pathname.startsWith('/api/auth') || pathname.startsWith('/login')) {
+  // Always allow: NextAuth routes, login page, and public/ static assets.
+  // Each public/ file must be explicitly listed here — intentionally narrow
+  // so that adding a new file requires a conscious decision to allow it through.
+  if (
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/login') ||
+    pathname === '/contentfill.png' ||
+    pathname === '/logo.png'
+  ) {
     return NextResponse.next();
   }
 
   // ── OAuth mode ────────────────────────────────────────────────────────────
   if (IS_OAUTH_MODE) {
-    // Pass secret explicitly — don't rely on implicit env var resolution
-    // in the Next.js Edge runtime, where variable lookup order is less predictable.
+    // Pass secret and secureCookie explicitly.
+    // The Edge runtime may detect the protocol differently from the Node.js API
+    // route that set the cookie, causing getToken() to look for the wrong cookie
+    // name. NEXTAUTH_URL starting with https means the __Secure- prefix is used.
     const token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: process.env.NEXTAUTH_URL?.startsWith('https://') ?? true,
     });
 
     if (!token || token.error === 'RefreshTokenError') {
@@ -32,23 +42,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Local / simple mode (no OAuth configured) ─────────────────────────────
-  // Mirrors the original behaviour: open if ADMIN_SECRET is unset, otherwise
-  // require the secret header on API routes.
-  if (!pathname.startsWith('/api/')) return NextResponse.next();
-
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) return NextResponse.next();
-
-  const provided =
-    request.headers.get('x-admin-secret') ??
-    // Case-insensitive match for the Bearer prefix (RFC 7230 §3.2)
-    request.headers.get('authorization')?.replace(/^Bearer /i, '');
-
-  if (provided !== secret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  // ── Local dev mode (no OAuth configured) ─────────────────────────────────
+  // Open — CONTENTFUL_MANAGEMENT_TOKEN in .env is the credential gate.
   return NextResponse.next();
 }
 
