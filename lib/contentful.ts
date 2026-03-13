@@ -1,5 +1,4 @@
 import { createClient, type Environment } from 'contentful-management';
-import { unstable_cache } from 'next/cache';
 
 function requireEnv(key: string): string {
   const val = process.env[key];
@@ -7,16 +6,33 @@ function requireEnv(key: string): string {
   return val;
 }
 
-// Cache the environment handle across requests in dev (hot-reload safe via module cache)
-let _env: Environment | null = null;
+/**
+ * Per-token cache of the Contentful environment handle to avoid redundant
+ * getSpace + getEnvironment API calls on every request.
+ *
+ * M3: Entries are evicted on any error during construction so a revoked or
+ * expired token never leaves a stale handle in the cache. The cache is
+ * process-scoped; a process restart clears it completely.
+ */
+const _envCache = new Map<string, Environment>();
 
-/** Returns a cached Contentful environment handle. Server-side only. */
-export async function getEnvironment(): Promise<Environment> {
-  if (_env) return _env;
-  const client = createClient({ accessToken: requireEnv('CONTENTFUL_MANAGEMENT_TOKEN') });
-  const space = await client.getSpace(requireEnv('CONTENTFUL_SPACE_ID'));
-  _env = await space.getEnvironment(process.env.CONTENTFUL_ENVIRONMENT ?? 'master');
-  return _env;
+/** Returns a Contentful environment handle for the given CMA token. */
+export async function getEnvironment(token: string): Promise<Environment> {
+  const cached = _envCache.get(token);
+  if (cached) return cached;
+
+  try {
+    const client = createClient({ accessToken: token });
+    const space = await client.getSpace(requireEnv('CONTENTFUL_SPACE_ID'));
+    const env = await space.getEnvironment(process.env.CONTENTFUL_ENVIRONMENT ?? 'master');
+    _envCache.set(token, env);
+    return env;
+  } catch (err) {
+    // M3: never cache a failed construction — ensures a revoked token
+    // doesn't persist in the cache waiting for a process restart.
+    _envCache.delete(token);
+    throw err;
+  }
 }
 
 export interface ContentTypeField {
@@ -36,6 +52,7 @@ export interface ContentTypeSummary {
   fields: ContentTypeField[];
 }
 
+/** Kept for import compatibility with routes that call revalidateTag. */
 export const CT_CACHE_TAG = 'contentful:content-types';
 
 export type RawEntry = Awaited<ReturnType<Environment['getEntries']>>['items'][number];
@@ -76,26 +93,24 @@ export function mapRawContentType(ct: RawContentType): ContentTypeSummary {
   };
 }
 
-export const getContentTypes = unstable_cache(
-  async (): Promise<ContentTypeSummary[]> => {
-    const env = await getEnvironment();
-    const result = await env.getContentTypes({ limit: 200 });
-    return result.items.map(mapRawContentType);
-  },
-  ['contentful:content-types'],
-  { revalidate: 3600, tags: [CT_CACHE_TAG] },
-);
+export async function getContentTypes(token: string): Promise<ContentTypeSummary[]> {
+  const env = await getEnvironment(token);
+  const result = await env.getContentTypes({ limit: 200 });
+  return result.items.map(mapRawContentType);
+}
 
-/** Bypasses the cache — use for manual refresh after out-of-band Contentful changes. */
-export async function fetchContentTypesFresh(): Promise<ContentTypeSummary[]> {
-  const env = await getEnvironment();
+/** Bypasses any client-side cache — use after out-of-band Contentful changes. */
+export async function fetchContentTypesFresh(token: string): Promise<ContentTypeSummary[]> {
+  // Evict the env cache entry so we get a fresh environment snapshot too
+  _envCache.delete(token);
+  const env = await getEnvironment(token);
   const result = await env.getContentTypes({ limit: 200 });
   return result.items.map(mapRawContentType);
 }
 
 /** Fetches all entries for a content type, handling Contentful's pagination. */
-export async function getAllEntries(contentType: string): Promise<RawEntry[]> {
-  const env = await getEnvironment();
+export async function getAllEntries(contentType: string, token: string): Promise<RawEntry[]> {
+  const env = await getEnvironment(token);
   const items: RawEntry[] = [];
   let skip = 0;
   const limit = 200;
@@ -117,27 +132,23 @@ export interface SampleEntry {
 }
 
 /** Fetches one entry for a content type to use as a schema/data preview. */
-export const getSampleEntry = unstable_cache(
-  async (contentType: string): Promise<SampleEntry | null> => {
-    const env = await getEnvironment();
-    const result = await env.getEntries({ content_type: contentType, limit: 1 });
-    if (result.items.length === 0) return null;
-    return {
-      id: result.items[0].sys.id,
-      fields: result.items[0].fields as Record<string, Record<string, unknown>>,
-    };
-  },
-  ['contentful:sample-entry'],
-  { revalidate: 3600 },
-);
+export async function getSampleEntry(contentType: string, token: string): Promise<SampleEntry | null> {
+  const env = await getEnvironment(token);
+  const result = await env.getEntries({ content_type: contentType, limit: 1 });
+  if (result.items.length === 0) return null;
+  return {
+    id: result.items[0].sys.id,
+    fields: result.items[0].fields as Record<string, Record<string, unknown>>,
+  };
+}
 
 /**
  * Batch-fetches entries by ID.
  * Uses `sys.id[in]` to retrieve up to 200 entries per API call instead of N individual
  * getEntry calls — ceil(N/200) calls total.
  */
-export async function fetchEntriesByIds(entryIds: string[]): Promise<RawEntry[]> {
-  const env = await getEnvironment();
+export async function fetchEntriesByIds(entryIds: string[], token: string): Promise<RawEntry[]> {
+  const env = await getEnvironment(token);
   const all: RawEntry[] = [];
   for (let i = 0; i < entryIds.length; i += 200) {
     const page = await env.getEntries({
@@ -157,9 +168,10 @@ export async function fetchEntriesByIds(entryIds: string[]): Promise<RawEntry[]>
 export async function bulkPublishEntries(
   entryIds: string[],
   updatedEntries: Map<string, RawEntry>,
+  token: string,
 ): Promise<{ published: string[]; failed: Array<{ entryId: string; error: string }> }> {
   if (entryIds.length === 0) return { published: [], failed: [] };
-  const env = await getEnvironment();
+  const env = await getEnvironment(token);
   const published: string[] = [];
   const failed: Array<{ entryId: string; error: string }> = [];
 
@@ -186,7 +198,6 @@ export async function bulkPublishEntries(
       await Promise.all(
         chunk.map(async (id) => {
           try {
-            // Prefer the already-updated in-memory object; fall back to a fresh GET if missing
             const entry = updatedEntries.get(id) ?? await env.getEntry(id);
             await entry.publish();
             published.push(id);

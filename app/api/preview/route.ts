@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { checkAuth } from '@/lib/auth';
+import { getContentfulToken } from '@/lib/auth';
 import { dryRun, type MigrationPlan } from '@/lib/migration';
 
 export async function POST(request: Request) {
-  if (!checkAuth(request)) {
+  const token = await getContentfulToken(request);
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   plan.skipExisting ??= true;
 
   try {
-    const result = await dryRun(plan);
+    const result = await dryRun(plan, token);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

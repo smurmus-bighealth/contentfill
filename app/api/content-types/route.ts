@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
-import { checkAuth } from '@/lib/auth';
-import { getContentTypes, fetchContentTypesFresh, CT_CACHE_TAG } from '@/lib/contentful';
+import { getContentfulToken } from '@/lib/auth';
+import { getContentTypes, fetchContentTypesFresh } from '@/lib/contentful';
 import { TRANSFORMS, BROKEN_TRANSFORMS } from '@/lib/transforms';
 
 export async function GET(request: Request) {
-  if (!checkAuth(request)) {
+  const token = await getContentfulToken(request);
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const url = new URL(request.url);
     const forceRefresh = url.searchParams.get('refresh') === '1';
-    if (forceRefresh) revalidateTag(CT_CACHE_TAG);
-    const contentTypes = forceRefresh ? await fetchContentTypesFresh() : await getContentTypes();
+    const contentTypes = forceRefresh
+      ? await fetchContentTypesFresh(token)
+      : await getContentTypes(token);
+
     return NextResponse.json({
       contentTypes,
       transforms: TRANSFORMS.map((t) => ({

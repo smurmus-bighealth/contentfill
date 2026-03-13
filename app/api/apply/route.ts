@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { checkAuth } from '@/lib/auth';
+import { getContentfulToken } from '@/lib/auth';
 import { applyMigration, type MigrationPlan } from '@/lib/migration';
 import type { TransformResult } from '@/lib/transforms';
 
@@ -9,7 +9,8 @@ interface ApplyBody {
 }
 
 export async function POST(request: Request) {
-  if (!checkAuth(request)) {
+  const token = await getContentfulToken(request);
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await applyMigration(plan, updates);
+    const result = await applyMigration(plan, updates, token);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

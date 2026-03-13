@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
-import { checkAuth } from '@/lib/auth';
+import { getContentfulToken } from '@/lib/auth';
 import { omitField, removeField } from '@/lib/schema-migration';
-import { CT_CACHE_TAG } from '@/lib/contentful';
 
 /**
  * POST /api/schema-delete
@@ -13,9 +11,11 @@ import { CT_CACHE_TAG } from '@/lib/contentful';
  *   Phase 'remove' — removes field from the schema array and publishes
  */
 export async function POST(req: NextRequest) {
-  if (!checkAuth(req)) {
+  const token = await getContentfulToken(req);
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
   try {
     const { selectedCTs, fieldId, phase } = (await req.json()) as {
       selectedCTs: Array<{ id: string; name: string }>;
@@ -23,10 +23,8 @@ export async function POST(req: NextRequest) {
       phase: 'omit' | 'remove';
     };
     const result = phase === 'omit'
-      ? await omitField(selectedCTs, fieldId)
-      : await removeField(selectedCTs, fieldId);
-    // Bust the server-side content type cache after the final phase
-    if (phase === 'remove' && result.succeeded.length > 0) revalidateTag(CT_CACHE_TAG);
+      ? await omitField(selectedCTs, fieldId, token)
+      : await removeField(selectedCTs, fieldId, token);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

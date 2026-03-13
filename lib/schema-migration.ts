@@ -76,8 +76,9 @@ async function pMap<T, R>(items: T[], fn: (item: T) => Promise<R>, limit: number
 export async function applySchemaChange(
   selectedCTs: Array<{ id: string; name: string }>,
   field: NewFieldDefinition,
+  token: string,
 ): Promise<SchemaApplyResult> {
-  const env = await getEnvironment();
+  const env = await getEnvironment(token);
   const succeeded: SchemaApplyResult['succeeded'] = [];
   const failed: SchemaApplyResult['failed'] = [];
 
@@ -120,8 +121,9 @@ export async function applySchemaChange(
 export async function omitField(
   selectedCTs: Array<{ id: string; name: string }>,
   fieldId: string,
+  token: string,
 ): Promise<SchemaDeleteResult> {
-  const env = await getEnvironment();
+  const env = await getEnvironment(token);
   const succeeded: SchemaDeleteResult['succeeded'] = [];
   const failed: SchemaDeleteResult['failed'] = [];
 
@@ -151,8 +153,9 @@ export async function omitField(
 export async function removeField(
   selectedCTs: Array<{ id: string; name: string }>,
   fieldId: string,
+  token: string,
 ): Promise<SchemaDeleteResult> {
-  const env = await getEnvironment();
+  const env = await getEnvironment(token);
   const succeeded: SchemaDeleteResult['succeeded'] = [];
   const failed: SchemaDeleteResult['failed'] = [];
 

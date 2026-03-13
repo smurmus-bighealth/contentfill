@@ -37,11 +37,11 @@ export interface ApplyResult {
   failed: Array<{ entryId: string; error: string }>;
 }
 
-export async function dryRun(plan: MigrationPlan): Promise<DryRunResult> {
+export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRunResult> {
   const transform = getTransform(plan.transformId);
   if (!transform) throw new Error(`Unknown transform: "${plan.transformId}"`);
 
-  const rawEntries = await getAllEntries(plan.contentType);
+  const rawEntries = await getAllEntries(plan.contentType, token);
 
   const snapshots: EntrySnapshot[] = rawEntries.map((entry) => {
     const resolvedFields: Record<string, unknown> = {};
@@ -147,13 +147,14 @@ async function pMap<T, R>(
 export async function applyMigration(
   plan: MigrationPlan,
   updates: TransformResult[],
+  token: string,
   onProgress?: (done: number, total: number) => void,
 ): Promise<ApplyResult> {
   const eligible = updates.filter((u) => u.errors.length === 0 && u.proposedValue !== null);
   if (eligible.length === 0) return { succeeded: [], failed: [] };
 
   // Phase 1: Batch-fetch all entries — ceil(N/200) calls instead of N individual getEntry calls
-  const entries = await fetchEntriesByIds(eligible.map((u) => u.entryId));
+  const entries = await fetchEntriesByIds(eligible.map((u) => u.entryId), token);
   const byId = new Map<string, RawEntry>(entries.map((e) => [e.sys.id, e]));
 
   // Phase 2: Concurrently write field values to all entries (N calls, APPLY_CONCURRENCY at a time)
@@ -190,6 +191,7 @@ export async function applyMigration(
   const { published, failed: publishFailed } = await bulkPublishEntries(
     saved.map((o) => o.entryId),
     new Map(saved.map((o) => [o.entryId, o.saved])),
+    token,
   );
 
   return {

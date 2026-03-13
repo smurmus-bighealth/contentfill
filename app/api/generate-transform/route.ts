@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
+import { getContentfulToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
+  // C3 fix: gate this route with the same auth as all other API routes.
+  // Without this, an unauthenticated caller on a local/simple deployment
+  // could exhaust the ANTHROPIC_API_KEY with arbitrary requests.
+  const token = await getContentfulToken(req);
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 501 });
   }

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { checkAuth } from '@/lib/auth';
+import { getContentfulToken } from '@/lib/auth';
 import { getSampleEntry } from '@/lib/contentful';
 
 export async function GET(request: Request) {
-  if (!checkAuth(request)) {
+  const token = await getContentfulToken(request);
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const entry = await getSampleEntry(contentType);
+    const entry = await getSampleEntry(contentType, token);
     return NextResponse.json({ entry });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
