@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getContentfulToken } from '@/lib/auth';
 import { dryRun, type MigrationPlan } from '@/lib/migration';
+import { aiDryRun } from '@/lib/ai-transform';
 
 export async function POST(request: Request) {
   const token = await getContentfulToken();
@@ -26,9 +27,22 @@ export async function POST(request: Request) {
   plan.skipExisting ??= true;
 
   try {
+    // AI agent path: batched Haiku calls instead of a deterministic transform.
+    if (plan.transformId === 'ai-agent') {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 501 });
+      }
+      const result = await aiDryRun(plan, token);
+      return NextResponse.json(result);
+    }
+
     const result = await dryRun(plan, token);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/preview]', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 },
+    );
   }
 }

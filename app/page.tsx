@@ -11,11 +11,17 @@ import AddFieldApplyStep from '@/components/AddFieldApplyStep';
 import DeleteFieldStep, { type DeleteFieldValues } from '@/components/DeleteFieldStep';
 import DeleteFieldPreviewStep from '@/components/DeleteFieldPreviewStep';
 import DeleteFieldApplyStep from '@/components/DeleteFieldApplyStep';
-import type { DryRunResult, ApplyResult } from '@/lib/migration';
+import AgentPanel from '@/components/AgentPanel';
+import ContentTypeInspector from '@/components/ContentTypeInspector';
+import ContentTypeCheckboxPicker from '@/components/ContentTypeCheckboxPicker';
+import { groupContentTypes } from '@/lib/group-content-types';
+import type { DryRunResult, ApplyResult, MigrationPlan } from '@/lib/migration';
 import type { TransformResult } from '@/lib/transforms';
 import type { ContentTypeSummary } from '@/lib/contentful';
 import type { CTDryRunOutcome, SchemaApplyResult, CTDeleteOutcome, SchemaDeleteResult } from '@/lib/schema-migration-shared';
 import { dryRunSchemaChange, dryRunDeleteField } from '@/lib/schema-migration-shared';
+import type { AgentResolution } from '@/lib/agent-types';
+import type { SampleEntry } from '@/lib/contentful';
 
 // ── Shared bootstrap data ─────────────────────────────────────────────────────
 
@@ -30,7 +36,7 @@ const BOOTSTRAP_CACHE_KEY = 'contentful-admin:bootstrap';
 // ── Step / workflow types ─────────────────────────────────────────────────────
 
 type FlowStep = 'config' | 'preview' | 'apply';
-type Workflow = 'update-entries' | 'add-field' | 'delete-field';
+type Workflow = 'update-entries' | 'add-field' | 'delete-field' | 'agent';
 
 // ── Root page ─────────────────────────────────────────────────────────────────
 
@@ -100,6 +106,7 @@ export default function Home() {
           <WorkflowTab active={workflow === 'update-entries'} onClick={() => setWorkflow('update-entries')} label="Update Entries" />
           <WorkflowTab active={workflow === 'add-field'} onClick={() => setWorkflow('add-field')} label="Add Field" />
           <WorkflowTab active={workflow === 'delete-field'} onClick={() => setWorkflow('delete-field')} label="Delete Field" />
+          <WorkflowTab active={workflow === 'agent'} onClick={() => setWorkflow('agent')} label="AI Agent" />
         </div>
         <button
           type="button"
@@ -130,6 +137,281 @@ export default function Home() {
           spaceId={spaceId}
           environment={environment}
           onSuccess={patchBootstrap}
+        />
+      )}
+      {workflow === 'agent' && (
+        <AgentFlow
+          contentTypes={contentTypes}
+          spaceId={spaceId}
+          environment={environment}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── AI Agent workflow ─────────────────────────────────────────────────────────
+
+/**
+ * AgentFlow wraps the AI agent chat + the standard Preview/Apply steps.
+ *
+ * step='chat'    — AgentPanel handles the conversation. Once the agent resolves
+ *                  a MigrationPlan, /api/preview is called automatically and the
+ *                  user is transitioned to step='preview'.
+ * step='preview' — Reuses PreviewStep unchanged (same as UpdateEntriesFlow).
+ * step='apply'   — Reuses ApplyStep unchanged.
+ *
+ * A ConfigValues object is reconstructed from the resolved MigrationPlan so
+ * PreviewStep can display the content type name and target field without changes.
+ *
+ * Note: currently supports a single content type per operation. Multi-type
+ * support would require either multiple plans or a redesigned plan shape.
+ */
+type AgentFlowStep = 'chat' | 'preview' | 'apply';
+
+function AgentFlow({
+  contentTypes,
+  spaceId,
+  environment,
+}: {
+  contentTypes: ContentTypeSummary[];
+  spaceId: string;
+  environment: string;
+}) {
+  const [step, setStep] = useState<AgentFlowStep>('chat');
+  const [plan, setPlan] = useState<MigrationPlan | null>(null);
+  const [agentConfig, setAgentConfig] = useState<ConfigValues | null>(null);
+  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
+  const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Optional CT pre-selection — narrows the agent's focus context.
+  const [focusedCTIds, setFocusedCTIds] = useState<Set<string>>(new Set());
+  const [ctSearch, setCtSearch] = useState('');
+
+  const filteredCTs = useMemo(() => {
+    const q = ctSearch.toLowerCase().trim();
+    return q ? contentTypes.filter((c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) : contentTypes;
+  }, [contentTypes, ctSearch]);
+  const groupedCTs = useMemo(() => groupContentTypes(filteredCTs), [filteredCTs]);
+
+  function toggleCT(id: string) {
+    setFocusedCTIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }
+  function toggleGroup(ids: string[]) {
+    setFocusedCTIds((prev) => {
+      const next = new Set(prev);
+      const allOn = ids.every((id) => next.has(id));
+      ids.forEach((id) => allOn ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }
+  function toggleAll() {
+    setFocusedCTIds((prev) => prev.size === filteredCTs.length ? new Set() : new Set(filteredCTs.map((c) => c.id)));
+  }
+
+  // Resolved CT inspector — persisted across all steps so it stays visible
+  // during preview and apply as a collapsible reference panel.
+  const [resolvedCT, setResolvedCT] = useState<ContentTypeSummary | null>(null);
+  const [sampleEntry, setSampleEntry] = useState<SampleEntry | null | 'loading' | 'error'>('loading');
+
+  useEffect(() => {
+    if (!resolvedCT) return;
+    const CACHE_KEY = `contentful-admin:sample:${resolvedCT.id}`;
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) { setSampleEntry(JSON.parse(cached) as SampleEntry | null); return; }
+    } catch { /* ignore */ }
+    setSampleEntry('loading');
+    apiFetch<{ entry: SampleEntry | null }>(`/api/sample-entry?contentType=${encodeURIComponent(resolvedCT.id)}`)
+      .then((res) => {
+        try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(res.entry)); } catch { /* ignore */ }
+        setSampleEntry(res.entry);
+      })
+      .catch(() => setSampleEntry('error'));
+  }, [resolvedCT]);
+
+  async function handleResolution(resolution: AgentResolution) {
+    const resolvedPlan = resolution.plan;
+    setPlan(resolvedPlan);
+
+    // Build a ConfigValues from the plan so PreviewStep can display correctly.
+    const ct = contentTypes.find((c) => c.id === resolvedPlan.contentType);
+    setAgentConfig({
+      contentType:     resolvedPlan.contentType,
+      contentTypeName: ct?.name ?? resolvedPlan.contentType,
+      targetField:     resolvedPlan.targetField,
+      transformId:     resolvedPlan.transformId,
+      transformConfig: resolvedPlan.transformConfig,
+      locale:          resolvedPlan.locale,
+      skipExisting:    resolvedPlan.skipExisting,
+    });
+
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const result = await apiFetch<DryRunResult>('/api/preview', {
+        method: 'POST',
+        json: resolvedPlan,
+      });
+      setDryRunResult(result);
+      setStep('preview');
+    } catch (e) {
+      setPreviewError((e as Error).message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleApply(updates: TransformResult[]) {
+    if (!plan) return;
+    setApplyError(null);
+    setIsApplying(true);
+    try {
+      const result = await apiFetch<ApplyResult>('/api/apply', {
+        method: 'POST',
+        json: { plan, updates },
+      });
+      setApplyResult(result);
+      setStep('apply');
+    } catch (e) {
+      setApplyError((e as Error).message);
+    } finally {
+      setIsApplying(false);
+    }
+  }
+
+  function reset() {
+    setStep('chat');
+    setPlan(null);
+    setAgentConfig(null);
+    setDryRunResult(null);
+    setApplyResult(null);
+    setPreviewError(null);
+    setApplyError(null);
+    setResolvedCT(null);
+    setSampleEntry('loading');
+    // Keep focusedCTIds — user's selection persists across resets within the same session
+  }
+
+  const allSucceeded =
+    step === 'apply' && !!applyResult && applyResult.failed.length === 0 && applyResult.succeeded.length > 0;
+
+  return (
+    <div className="space-y-6">
+      <StepIndicator current={step === 'chat' ? 'config' : step === 'preview' ? 'preview' : 'apply'} allSucceeded={allSucceeded} />
+
+      {step === 'chat' && (
+        <>
+          {/* Optional CT pre-selection — collapses after the agent resolves to reduce noise.
+              Selected types are passed as focus context so the agent prioritises them and
+              other users querying/browsing before deciding what to migrate. */}
+          {contentTypes.length > 0 && (
+            <details className="group rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 select-none hover:bg-gray-50">
+                <span>
+                  Focus on specific content types
+                  {focusedCTIds.size > 0 && (
+                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                      {focusedCTIds.size} selected
+                    </span>
+                  )}
+                </span>
+                <svg className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </summary>
+              <div className="border-t border-gray-100 px-4 pb-4 pt-1">
+                <p className="mb-3 text-xs text-gray-500">
+                  Optional. Select types to narrow the agent&apos;s focus — useful if you already know what you want to work with. The agent can still reference all types.
+                </p>
+                <ContentTypeCheckboxPicker
+                  groupedCTs={groupedCTs}
+                  filteredTotal={filteredCTs.length}
+                  selectedIds={focusedCTIds}
+                  ctSearch={ctSearch}
+                  onSearchChange={setCtSearch}
+                  onToggle={toggleCT}
+                  onGroupToggle={toggleGroup}
+                  onToggleAll={toggleAll}
+                />
+              </div>
+            </details>
+          )}
+
+          {previewLoading && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+              Fetching entries and generating AI preview… this may take a moment for large content types.
+            </div>
+          )}
+          {previewError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <strong>Preview failed:</strong> {previewError}
+            </div>
+          )}
+          <AgentPanel
+            contentTypes={contentTypes}
+            focusedCTIds={Array.from(focusedCTIds)}
+            onResolution={handleResolution}
+            onCTResolved={setResolvedCT}
+          />
+        </>
+      )}
+
+      {/* Resolved CT inspector — persists across all steps as a collapsible reference.
+          Expanded by default during chat so users can verify the schema before preview;
+          collapsed by default during preview/apply to keep the primary content prominent. */}
+      {resolvedCT && (
+        <details open={step === 'chat'} className="group rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 select-none hover:bg-gray-50">
+            <span>
+              Content type: <span className="font-semibold">{resolvedCT.name}</span>
+              <span className="ml-2 font-mono text-xs text-gray-400">{resolvedCT.id}</span>
+            </span>
+            <svg className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </summary>
+          <div className="border-t border-gray-100">
+            <ContentTypeInspector
+              ct={resolvedCT}
+              locale="en-US"
+              spaceId={spaceId}
+              environment={environment}
+              sample={sampleEntry}
+            />
+          </div>
+        </details>
+      )}
+
+      {step === 'preview' && dryRunResult && agentConfig && (
+        <>
+          {applyError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <strong>Apply failed:</strong> {applyError}
+            </div>
+          )}
+          <PreviewStep
+            config={agentConfig}
+            result={dryRunResult}
+            onApply={handleApply}
+            onBack={reset}
+            isApplying={isApplying}
+            spaceId={spaceId}
+            environment={environment}
+          />
+        </>
+      )}
+
+      {step === 'apply' && applyResult && (
+        <ApplyStep
+          result={applyResult}
+          spaceId={spaceId}
+          environment={environment}
+          onReset={reset}
         />
       )}
     </div>

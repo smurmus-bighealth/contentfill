@@ -6,7 +6,7 @@
 
 ---
 
-**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🔒 Security](#-security) &nbsp;·&nbsp; [🎨 Preview](#-preview)
+**Contents** &nbsp;·&nbsp; [💡 Why?](#-why) &nbsp;·&nbsp; [✨ What it does](#-what-it-does) &nbsp;·&nbsp; [🔍 How it works](#-how-it-works) &nbsp;·&nbsp; [🛠 Setup](#-setup) &nbsp;·&nbsp; [📋 Workflows](#-workflows) &nbsp;·&nbsp; [🗄 Cache & Refresh](#-cache--refresh) &nbsp;·&nbsp; [⚙️ Transforms](#️-available-transforms) &nbsp;·&nbsp; [🤖 AI Agent](#-ai-agent) &nbsp;·&nbsp; [🔒 Security](#-security) &nbsp;·&nbsp; [🎨 Preview](#-preview)
 
 ---
 
@@ -27,6 +27,8 @@ Contentfill fills that gap: a minimal, opinionated UI that wraps the CMA with pr
 **Add Field** — add a new field to one or more content types at once, with a dry-run preview of conflicts.
 
 **Delete Field** — remove a field from one or more content types via Contentful's required two-phase process (omit → remove), with a live progress indicator.
+
+**AI Agent** — describe a bulk change in plain English; the agent asks clarifying questions if needed, then generates a full dry-run preview using the same table as above. No transform code required.
 
 The environment the app is pointed at is shown in the header badge so you always know what you're operating on.
 
@@ -221,6 +223,36 @@ The transform will automatically appear in the UI dropdown.
 **If a transform fails to load** (missing required fields, wrong types, duplicate ID), it appears in the UI as a non-selectable broken entry with the specific error, so you can fix it without restarting anything except the server. A `console.error` is also logged at startup. `apply()` errors are caught per-entry and shown as blocking errors in the preview. `validateBatch()` errors surface as per-entry warnings so the preview still loads.
 
 > **Planned:** A UI-driven flow for creating transforms in plain language — describe what you want in plain English and have the transform generated without writing any TypeScript. The backend endpoint (`/api/generate-transform`) already exists; the remaining work is the in-app UI for submitting a description, reviewing the generated code, and registering it without touching the filesystem.
+
+---
+
+## 🤖 AI Agent
+
+The **AI Agent** tab lets you describe bulk changes in plain English — no code, no transform scripts, no knowledge of field IDs required.
+
+### How it works
+
+1. **Chat** — describe what you want: *"Write a 2-sentence summary of each article's body into the excerpt field"* or *"Generate slugs for Blog Posts from the title"*.
+2. The agent asks clarifying questions if the content type, target field, or intent is ambiguous.
+3. Once it has enough context, it produces a migration plan and immediately triggers a **dry-run preview** — the same diff table used by the manual Update Entries flow.
+4. Review every proposed value. Manually override any entry if needed.
+5. **Apply** — bulk-updates and publishes, exactly as the manual flow.
+
+For requests that map to a built-in transform (slugify, copy-field), no extra AI calls are made at preview time — the deterministic transform runs as normal. For natural-language transformations (summarise, rewrite, extract, etc.), Claude Haiku processes entries in batches of 50 to minimise API calls and cost.
+
+### Setup
+
+Requires `ANTHROPIC_API_KEY` in your environment. The AI Agent tab is hidden until this is set.
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+> **Note:** Entry field data is sent to Anthropic's API to compute proposed values. Only the fields relevant to the transformation are included. Do not use the AI Agent on content types containing sensitive PII if your Anthropic data processing agreement does not cover it.
+
+### Cost
+
+AI transforms use Claude Haiku (cheapest model). Entries are processed in batches of 50 — a 500-entry content type makes ~10 API calls at preview time. `skipExisting: true` (the default) reduces the count further. Typical cost for a 500-entry run is well under $0.05.
 
 ---
 

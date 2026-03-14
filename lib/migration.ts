@@ -12,6 +12,7 @@
 
 import { getAllEntries, fetchEntriesByIds, bulkPublishEntries, type RawEntry } from './contentful';
 import { getTransform, type TransformResult, type EntrySnapshot } from './transforms';
+import { pMap } from './concurrency';
 
 export interface MigrationPlan {
   contentType: string;
@@ -125,24 +126,6 @@ export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRun
  * The publish phase uses the Bulk Actions API (1 call per 100 entries).
  */
 const APPLY_CONCURRENCY = 4;
-
-/** Runs async tasks over `items` with at most `limit` in-flight at once. */
-async function pMap<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  limit: number,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
-}
 
 export async function applyMigration(
   plan: MigrationPlan,

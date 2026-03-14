@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { getContentfulToken } from '@/lib/auth';
+import { GENERATE_TRANSFORM_MODEL } from '@/lib/ai-models';
 
 export async function POST(req: NextRequest) {
   // Gate this route the same as all other API routes — an unauthenticated
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: GENERATE_TRANSFORM_MODEL,
       max_tokens: 2048,
       messages: [
         {
