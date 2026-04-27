@@ -12,6 +12,7 @@ import DeleteFieldStep, { type DeleteFieldValues } from '@/components/DeleteFiel
 import DeleteFieldPreviewStep from '@/components/DeleteFieldPreviewStep';
 import DeleteFieldApplyStep from '@/components/DeleteFieldApplyStep';
 import AgentPanel from '@/components/AgentPanel';
+import CsvImportFlow from '@/components/CsvImportFlow';
 import ContentTypeInspector from '@/components/ContentTypeInspector';
 import ContentTypeCheckboxPicker from '@/components/ContentTypeCheckboxPicker';
 import { groupContentTypes } from '@/lib/group-content-types';
@@ -36,7 +37,7 @@ const BOOTSTRAP_CACHE_KEY = 'contentful-admin:bootstrap';
 // ── Step / workflow types ─────────────────────────────────────────────────────
 
 type FlowStep = 'config' | 'preview' | 'apply';
-type Workflow = 'update-entries' | 'add-field' | 'delete-field' | 'agent';
+type Workflow = 'update-entries' | 'add-field' | 'delete-field' | 'agent' | 'csv-import';
 
 // ── Root page ─────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ export default function Home() {
           <WorkflowTab active={workflow === 'add-field'} onClick={() => setWorkflow('add-field')} label="Add Field" />
           <WorkflowTab active={workflow === 'delete-field'} onClick={() => setWorkflow('delete-field')} label="Delete Field" />
           <WorkflowTab active={workflow === 'agent'} onClick={() => setWorkflow('agent')} label="AI Agent" />
+          <WorkflowTab active={workflow === 'csv-import'} onClick={() => setWorkflow('csv-import')} label="CSV Import" />
         </div>
         <button
           type="button"
@@ -141,6 +143,13 @@ export default function Home() {
       )}
       {workflow === 'agent' && (
         <AgentFlow
+          contentTypes={contentTypes}
+          spaceId={spaceId}
+          environment={environment}
+        />
+      )}
+      {workflow === 'csv-import' && (
+        <CsvImportFlow
           contentTypes={contentTypes}
           spaceId={spaceId}
           environment={environment}
