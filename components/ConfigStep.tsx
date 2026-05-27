@@ -144,6 +144,7 @@ export default function ConfigStep({ onSubmit }: Props) {
     setAiError('');
     try {
       const res = await apiFetch<{ code: string }>('/api/generate-transform', {
+        method: 'POST',
         json: { description: aiDescription, fields: ct.fields.map((f) => f.id) },
       });
       setAiCode(res.code);
