@@ -1,4 +1,4 @@
-<div align="center" style="padding:16px">
+<div align="center" style="padding:16px" id="start-here">
   <img src="public/contentfill.png" alt="Contentfill" width="320" />
 </div>
 
