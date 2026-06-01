@@ -57,6 +57,7 @@ export default function CsvImportFlow({
 
   async function handleMappingSubmit(finalMappings: ColumnMapping[], locale: string) {
     setMappings(finalMappings);
+    setPreviewResult(null);
     setError(null);
     setIsLoading(true);
     const config: CsvImportConfig = {
@@ -531,6 +532,8 @@ function PreviewStep({
 
   const canApply = result.canApply;
   const eligibleCount = result.proposals.filter((p) => p.errors.length === 0).length;
+  const eligibleCreateCount = result.proposals.filter((p) => p.action === 'create' && p.errors.length === 0).length;
+  const eligibleUpdateCount = result.proposals.filter((p) => p.action === 'update' && p.errors.length === 0).length;
 
   function entryUrl(entryId: string) {
     const envSeg = environment === 'master' ? '' : `/environments/${environment}`;
@@ -543,8 +546,8 @@ function PreviewStep({
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm text-sm">
         <span className="font-semibold text-gray-700">{contentType.name}</span>
         <span className="flex flex-wrap gap-2 ml-auto">
-          <Chip color="blue">{result.createCount} creates</Chip>
-          <Chip color="gray">{result.updateCount} updates</Chip>
+          <Chip color="blue">{eligibleCreateCount} creates</Chip>
+          <Chip color="gray">{eligibleUpdateCount} updates</Chip>
           {result.errorCount > 0 && <Chip color="red">{result.errorCount} errors</Chip>}
           {result.warningCount > 0 && <Chip color="yellow">{result.warningCount} warnings</Chip>}
         </span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import type { ContentTypeSummary, ContentTypeField, SampleEntry } from '@/lib/contentful';
 import type { ConfigFieldDef, BrokenTransform } from '@/lib/transforms';
@@ -64,6 +64,7 @@ export default function ConfigStep({ onSubmit }: Props) {
   const [aiCopied, setAiCopied] = useState(false);
   // true when the currently-shown aiCode has been explicitly activated via "Use this transform"
   const [aiCodeActivated, setAiCodeActivated] = useState(false);
+  const aiGenerationRef = useRef(0);
 
   useEffect(() => {
     const CACHE_KEY = 'contentful-admin:bootstrap';
@@ -148,6 +149,7 @@ export default function ConfigStep({ onSubmit }: Props) {
 
   async function handleGenerateTransform() {
     if (!ct || !aiDescription.trim()) return;
+    const gen = ++aiGenerationRef.current;
     setAiGenerating(true);
     setAiCode('');
     setAiLabel('');
@@ -158,12 +160,14 @@ export default function ConfigStep({ onSubmit }: Props) {
         method: 'POST',
         json: { description: aiDescription, fields: ct.fields.map((f) => f.id) },
       });
+      if (aiGenerationRef.current !== gen) return;
       setAiCode(res.code);
       setAiLabel(res.label);
     } catch (e) {
+      if (aiGenerationRef.current !== gen) return;
       setAiError(e instanceof Error ? e.message : String(e));
     } finally {
-      setAiGenerating(false);
+      if (aiGenerationRef.current === gen) setAiGenerating(false);
     }
   }
 
@@ -295,8 +299,8 @@ export default function ConfigStep({ onSubmit }: Props) {
                             name="contentType"
                             value={c.id}
                             checked={selectedCT === c.id}
-                            onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
-                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
+                            onChange={() => { aiGenerationRef.current++; setAiGenerating(false); setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
+                            onClick={() => { if (selectedCT === c.id) { aiGenerationRef.current++; setAiGenerating(false); setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
                             className="accent-blue-600"
                           />
                           <span className="text-sm">
@@ -323,8 +327,8 @@ export default function ConfigStep({ onSubmit }: Props) {
                           name="contentType"
                           value={c.id}
                           checked={selectedCT === c.id}
-                          onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
-                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
+                          onChange={() => { aiGenerationRef.current++; setAiGenerating(false); setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
+                            onClick={() => { if (selectedCT === c.id) { aiGenerationRef.current++; setAiGenerating(false); setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
                           className="accent-blue-600"
                         />
                         <span className="text-sm">

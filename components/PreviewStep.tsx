@@ -102,7 +102,7 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
           {config.contentTypeName} → <code className="rounded bg-gray-100 px-1">{config.targetField}</code>
         </span>
         <span className="ml-auto flex gap-3">
-          <Chip color="blue">{result.updates.length} to update</Chip>
+          <Chip color="blue">{applyCount} to update</Chip>
           <Chip color="gray">{result.skipped} skipped</Chip>
           {liveErrorCount > 0 && <Chip color="red">{liveErrorCount} errors</Chip>}
           {liveWarningCount > 0 && <Chip color="yellow">{liveWarningCount} warnings</Chip>}
