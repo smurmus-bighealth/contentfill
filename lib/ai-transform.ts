@@ -168,7 +168,7 @@ export async function aiDryRun(plan: MigrationPlan, token: string): Promise<DryR
         }
         const proposedValue = byId.get(s.id) ?? null;
         const errors: string[] = [];
-        if (proposedValue === null && plan.targetFieldRequired && !snap.fields[targetField]) {
+        if (proposedValue === null && plan.targetFieldRequired && snap.fields[targetField] == null) {
           errors.push(`Transform returned no value, but "${targetField}" is a required field`);
         }
         return {

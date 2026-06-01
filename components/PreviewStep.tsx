@@ -28,22 +28,6 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
   // Allow manual overrides for flagged entries
   const [overrides, setOverrides] = useState<Record<string, string>>({});
 
-  const filtered = result.updates.filter((u) => {
-    const matchesSearch =
-      !search ||
-      u.displayLabel.toLowerCase().includes(search.toLowerCase()) ||
-      u.entryId.toLowerCase().includes(search.toLowerCase()) ||
-      String(u.proposedValue ?? '').toLowerCase().includes(search.toLowerCase());
-
-    const matchesFilter =
-      filter === 'all' ||
-      (filter === 'errors' && u.errors.length > 0) ||
-      (filter === 'warnings' && u.warnings.length > 0 && u.errors.length === 0) ||
-      (filter === 'clean' && u.errors.length === 0 && u.warnings.length === 0);
-
-    return matchesSearch && matchesFilter;
-  });
-
   // Merge overrides into updates before applying.
   // When overrides exist, server-side collision errors may be stale (they reference
   // pre-edit values), so we strip them and re-run duplicate detection client-side.
@@ -86,9 +70,29 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
     });
   }
 
+  // All display and counts derive from finalUpdates so overrides are always reflected.
   const finalUpdates = buildFinalUpdates();
   const remainingErrors = finalUpdates.filter((u) => u.errors.length > 0).length;
   const canApply = remainingErrors === 0;
+  const liveErrorCount = remainingErrors;
+  const liveWarningCount = finalUpdates.filter((u) => u.warnings.length > 0 && u.errors.length === 0).length;
+  const applyCount = finalUpdates.filter((u) => u.errors.length === 0 && u.proposedValue !== null).length;
+
+  const filtered = finalUpdates.filter((u) => {
+    const matchesSearch =
+      !search ||
+      u.displayLabel.toLowerCase().includes(search.toLowerCase()) ||
+      u.entryId.toLowerCase().includes(search.toLowerCase()) ||
+      String(u.proposedValue ?? '').toLowerCase().includes(search.toLowerCase());
+
+    const matchesFilter =
+      filter === 'all' ||
+      (filter === 'errors' && u.errors.length > 0) ||
+      (filter === 'warnings' && u.warnings.length > 0 && u.errors.length === 0) ||
+      (filter === 'clean' && u.errors.length === 0 && u.warnings.length === 0);
+
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <div className="space-y-5">
@@ -100,15 +104,15 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
         <span className="ml-auto flex gap-3">
           <Chip color="blue">{result.updates.length} to update</Chip>
           <Chip color="gray">{result.skipped} skipped</Chip>
-          {result.errorCount > 0 && <Chip color="red">{result.errorCount} errors</Chip>}
-          {result.warningCount > 0 && <Chip color="yellow">{result.warningCount} warnings</Chip>}
+          {liveErrorCount > 0 && <Chip color="red">{liveErrorCount} errors</Chip>}
+          {liveWarningCount > 0 && <Chip color="yellow">{liveWarningCount} warnings</Chip>}
         </span>
       </div>
 
       {/* Error banner */}
-      {result.errorCount > 0 && (
+      {liveErrorCount > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <strong>{result.errorCount} entries have errors</strong> and will be skipped unless you fix them manually below.
+          <strong>{liveErrorCount} {liveErrorCount === 1 ? 'entry has an error' : 'entries have errors'}</strong> and will be skipped unless you fix them manually below.
           Resolve each by editing the proposed value in the Proposed column.
         </div>
       )}
@@ -156,7 +160,7 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
               </tr>
             )}
             {filtered.map((u) => {
-              const hasError = u.errors.length > 0 && !overrides[u.entryId];
+              const hasError = u.errors.length > 0;
               const hasWarning = u.warnings.length > 0 && u.errors.length === 0;
               const isOverridden = overrides[u.entryId] !== undefined;
 
@@ -200,17 +204,16 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
                         hasError ? 'border-red-400 bg-red-50' : 'border-gray-200'
                       }`}
                     />
-                    {isOverridden ? (
+                    {u.errors.length > 0 ? (
+                      u.errors.map((e) => (
+                        <p key={e} className="mt-1 text-xs text-red-600">{e}</p>
+                      ))
+                    ) : isOverridden ? (
                       <p className="mt-1 text-xs text-purple-600">Manually overridden</p>
                     ) : (
-                      <>
-                        {u.errors.map((e) => (
-                          <p key={e} className="mt-1 text-xs text-red-600">{e}</p>
-                        ))}
-                        {u.warnings.map((w) => (
-                          <p key={w} className="mt-1 text-xs text-yellow-700">{w}</p>
-                        ))}
-                      </>
+                      u.warnings.map((w) => (
+                        <p key={w} className="mt-1 text-xs text-yellow-700">{w}</p>
+                      ))
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -253,7 +256,7 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
             disabled={!canApply || isApplying}
             className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isApplying ? 'Applying…' : `Apply ${finalUpdates.filter(u => u.errors.length === 0).length} updates`}
+            {isApplying ? 'Applying…' : `Apply ${applyCount} updates`}
           </button>
         </div>
       </div>

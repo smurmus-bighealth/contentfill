@@ -67,7 +67,7 @@ export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRun
   });
 
   const toProcess = plan.skipExisting
-    ? snapshots.filter((s) => !s.fields[plan.targetField])
+    ? snapshots.filter((s) => s.fields[plan.targetField] == null)
     : snapshots;
 
   const skipped = snapshots.length - toProcess.length;
@@ -84,7 +84,7 @@ export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRun
       errors.push(`Transform error: ${String(err)}`);
     }
 
-    if (proposedValue === null && errors.length === 0 && plan.targetFieldRequired && !snapshot.fields[plan.targetField]) {
+    if (proposedValue === null && errors.length === 0 && plan.targetFieldRequired && snapshot.fields[plan.targetField] == null) {
       errors.push(`Transform returned no value, but "${plan.targetField}" is a required field`);
     }
 
@@ -154,7 +154,7 @@ export async function dryRunInline(plan: MigrationPlan, token: string): Promise<
   });
 
   const toProcess = plan.skipExisting
-    ? snapshots.filter((s) => !s.fields[plan.targetField])
+    ? snapshots.filter((s) => s.fields[plan.targetField] == null)
     : snapshots;
 
   const skipped = snapshots.length - toProcess.length;
@@ -174,7 +174,7 @@ export async function dryRunInline(plan: MigrationPlan, token: string): Promise<
       errors.push(`Transform error: ${String(err)}`);
     }
 
-    if (proposedValue === null && errors.length === 0 && plan.targetFieldRequired && !snapshot.fields[plan.targetField]) {
+    if (proposedValue === null && errors.length === 0 && plan.targetFieldRequired && snapshot.fields[plan.targetField] == null) {
       errors.push(`Transform returned no value, but "${plan.targetField}" is a required field`);
     }
 

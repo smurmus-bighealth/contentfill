@@ -87,6 +87,7 @@ export default function ConfigStep({ onSubmit }: Props) {
   // Fetch sample entry once per selected content type — single fetch shared by both inspector instances
   useEffect(() => {
     if (!selectedCT) return;
+    let ignore = false;
     const CACHE_KEY = `contentful-admin:sample:${selectedCT}`;
     try {
       const cached = sessionStorage.getItem(CACHE_KEY);
@@ -95,10 +96,12 @@ export default function ConfigStep({ onSubmit }: Props) {
     setSampleEntry('loading');
     apiFetch<{ entry: SampleEntry | null }>(`/api/sample-entry?contentType=${encodeURIComponent(selectedCT)}`)
       .then((res) => {
+        if (ignore) return;
         try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(res.entry)); } catch { /* ignore */ }
         setSampleEntry(res.entry);
       })
-      .catch(() => setSampleEntry('error'));
+      .catch(() => { if (!ignore) setSampleEntry('error'); });
+    return () => { ignore = true; };
   }, [selectedCT]);
 
   const ct = data?.contentTypes.find((c) => c.id === selectedCT) ?? null;
