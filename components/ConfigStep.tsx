@@ -33,6 +33,8 @@ export interface ConfigValues {
   transformConfig: Record<string, unknown>;
   locale: string;
   skipExisting: boolean;
+  /** JavaScript function body used when transformId === 'ai-inline' */
+  inlineCode?: string;
 }
 
 interface Props {
@@ -56,8 +58,11 @@ export default function ConfigStep({ onSubmit }: Props) {
   const [aiDescription, setAiDescription] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiCode, setAiCode] = useState('');
+  const [aiLabel, setAiLabel] = useState('');
   const [aiError, setAiError] = useState('');
   const [aiCopied, setAiCopied] = useState(false);
+  // true when the currently-shown aiCode has been explicitly activated via "Use this transform"
+  const [aiCodeActivated, setAiCodeActivated] = useState(false);
 
   useEffect(() => {
     const CACHE_KEY = 'contentful-admin:bootstrap';
@@ -141,13 +146,16 @@ export default function ConfigStep({ onSubmit }: Props) {
     if (!ct || !aiDescription.trim()) return;
     setAiGenerating(true);
     setAiCode('');
+    setAiLabel('');
     setAiError('');
+    setAiCodeActivated(false);
     try {
-      const res = await apiFetch<{ code: string }>('/api/generate-transform', {
+      const res = await apiFetch<{ code: string; label: string; description: string }>('/api/generate-transform', {
         method: 'POST',
         json: { description: aiDescription, fields: ct.fields.map((f) => f.id) },
       });
       setAiCode(res.code);
+      setAiLabel(res.label);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -170,6 +178,7 @@ export default function ConfigStep({ onSubmit }: Props) {
       transformConfig,
       locale,
       skipExisting,
+      ...(selectedTransform === 'ai-inline' ? { inlineCode: aiCode } : {}),
     });
   }
 
@@ -236,7 +245,10 @@ export default function ConfigStep({ onSubmit }: Props) {
     return <div className="text-gray-500">Loading content types…</div>;
   }
 
-  const isReady = !!(selectedCT && targetField && selectedTransform);
+  const isReady = !!(
+    selectedCT && targetField && selectedTransform &&
+    (selectedTransform !== 'ai-inline' || !!aiCode)
+  );
 
   return (
     <div className="flex gap-6 items-start">
@@ -277,8 +289,8 @@ export default function ConfigStep({ onSubmit }: Props) {
                             name="contentType"
                             value={c.id}
                             checked={selectedCT === c.id}
-                            onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); }}
-                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); } }}
+                            onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
+                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
                             className="accent-blue-600"
                           />
                           <span className="text-sm">
@@ -305,8 +317,8 @@ export default function ConfigStep({ onSubmit }: Props) {
                           name="contentType"
                           value={c.id}
                           checked={selectedCT === c.id}
-                          onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); }}
-                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); } }}
+                          onChange={() => { setSelectedCT(c.id); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); }}
+                            onClick={() => { if (selectedCT === c.id) { setSelectedCT(''); setTargetField(''); setSelectedTransform(''); setSampleEntry('loading'); setAiCode(''); setAiLabel(''); setAiError(''); setAiCodeActivated(false); } }}
                           className="accent-blue-600"
                         />
                         <span className="text-sm">
@@ -421,13 +433,18 @@ export default function ConfigStep({ onSubmit }: Props) {
 
               {/* AI transform generator — only shown when Anthropic is configured and a CT is selected */}
               {data.anthropicEnabled && ct && (
-                <div className="mt-4 rounded-md border border-purple-200 overflow-hidden">
+                <div className={`mt-4 rounded-md border overflow-hidden ${selectedTransform === 'ai-inline' ? 'border-purple-400' : 'border-purple-200'}`}>
                   <button
                     type="button"
                     onClick={() => setAiOpen((v) => !v)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-purple-800 bg-purple-50 hover:bg-purple-100 transition-colors"
+                    className={`flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-purple-800 transition-colors ${selectedTransform === 'ai-inline' ? 'bg-purple-100 hover:bg-purple-200' : 'bg-purple-50 hover:bg-purple-100'}`}
                   >
-                    <span>Generate with AI ✨</span>
+                    <span className="flex items-center gap-2">
+                      Generate with AI ✨
+                      {selectedTransform === 'ai-inline' && (
+                        <span className="rounded-full bg-purple-600 px-2 py-0.5 text-xs font-semibold text-white">Selected</span>
+                      )}
+                    </span>
                     <svg
                       className={`h-4 w-4 shrink-0 text-purple-400 transition-transform ${aiOpen ? 'rotate-180' : ''}`}
                       viewBox="0 0 20 20"
@@ -439,7 +456,7 @@ export default function ConfigStep({ onSubmit }: Props) {
                   {aiOpen && (
                     <div className="border-t border-purple-100 p-4 space-y-3 bg-white">
                       <p className="text-xs text-gray-500">
-                        Describe the transform you want — AI will generate a TypeScript file based on this content type&apos;s fields.
+                        Describe what you want — AI will generate a transform and apply it directly.
                       </p>
                       <textarea
                         value={aiDescription}
@@ -461,21 +478,43 @@ export default function ConfigStep({ onSubmit }: Props) {
                       )}
                       {aiCode && (
                         <div className="space-y-2">
-                          <pre className="overflow-x-auto rounded-md bg-gray-900 p-4 text-xs text-gray-100 whitespace-pre-wrap">{aiCode}</pre>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void navigator.clipboard.writeText(aiCode);
-                              setAiCopied(true);
-                              setTimeout(() => setAiCopied(false), 2000);
-                            }}
-                            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                          >
-                            {aiCopied ? 'Copied!' : 'Copy'}
-                          </button>
-                          <p className="text-xs text-gray-500">
-                            Save to <code className="rounded bg-gray-100 px-1 font-mono">lib/transforms/your-name.ts</code>, register in <code className="rounded bg-gray-100 px-1 font-mono">lib/transforms/index.ts</code>, restart server
-                          </p>
+                          {aiLabel && (
+                            <p className="text-xs font-medium text-gray-700">{aiLabel}</p>
+                          )}
+                          <pre className="overflow-x-auto rounded-md bg-gray-900 p-4 text-xs text-gray-100 whitespace-pre-wrap">{
+                            `function apply(entry, config, allSnapshots) {\n${
+                              aiCode.split('\n').map((l) => `  ${l}`).join('\n')
+                            }\n}`
+                          }</pre>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTransform('ai-inline');
+                                setTransformConfig({});
+                                setAiCodeActivated(true);
+                                setAiOpen(false);
+                              }}
+                              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                                selectedTransform === 'ai-inline' && aiCodeActivated
+                                  ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                  : 'bg-purple-600 text-white hover:bg-purple-700'
+                              }`}
+                            >
+                              {selectedTransform === 'ai-inline' && aiCodeActivated ? 'Using this transform ✓' : 'Use this transform'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(aiCode);
+                                setAiCopied(true);
+                                setTimeout(() => setAiCopied(false), 2000);
+                              }}
+                              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              {aiCopied ? 'Copied!' : 'Copy'}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getContentfulToken } from '@/lib/auth';
-import { dryRun, type MigrationPlan } from '@/lib/migration';
+import { dryRun, dryRunInline, type MigrationPlan } from '@/lib/migration';
 import { aiDryRun } from '@/lib/ai-transform';
 
 export async function POST(request: Request) {
@@ -33,6 +33,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 501 });
       }
       const result = await aiDryRun(plan, token);
+      return NextResponse.json(result);
+    }
+
+    // Inline AI-generated transform: eval the function body server-side.
+    if (plan.transformId === 'ai-inline') {
+      if (!plan.inlineCode) {
+        return NextResponse.json({ error: 'inlineCode is required for ai-inline transforms' }, { status: 400 });
+      }
+      const result = await dryRunInline(plan, token);
       return NextResponse.json(result);
     }
 

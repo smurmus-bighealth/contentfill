@@ -22,6 +22,8 @@ export interface MigrationPlan {
   transformConfig: Record<string, unknown>;
   /** Skip entries that already have a non-null value in targetField */
   skipExisting: boolean;
+  /** JavaScript function body eval'd server-side when transformId === 'ai-inline' */
+  inlineCode?: string;
 }
 
 export interface DryRunResult {
@@ -117,6 +119,69 @@ export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRun
     errorCount,
     warningCount,
   };
+}
+
+export async function dryRunInline(plan: MigrationPlan, token: string): Promise<DryRunResult> {
+  if (!plan.inlineCode) throw new Error('inlineCode is required for ai-inline transforms');
+
+  type ApplyFn = (entry: EntrySnapshot, config: Record<string, unknown>, allSnapshots: EntrySnapshot[]) => unknown;
+  let applyFn: ApplyFn;
+  try {
+    // eslint-disable-next-line no-new-func
+    applyFn = new Function('entry', 'config', 'allSnapshots', plan.inlineCode) as ApplyFn;
+  } catch (err) {
+    throw new Error(`Invalid inline transform: ${String(err)}`);
+  }
+
+  const rawEntries = await getAllEntries(plan.contentType, token);
+
+  const snapshots: EntrySnapshot[] = rawEntries.map((entry) => {
+    const resolvedFields: Record<string, unknown> = {};
+    for (const [key, localeMap] of Object.entries(entry.fields)) {
+      resolvedFields[key] = (localeMap as Record<string, unknown>)[plan.locale] ?? null;
+    }
+    const displayLabel =
+      (resolvedFields['title'] as string | undefined) ??
+      (resolvedFields['name'] as string | undefined) ??
+      entry.sys.id;
+    return { id: entry.sys.id, displayLabel, fields: resolvedFields };
+  });
+
+  const toProcess = plan.skipExisting
+    ? snapshots.filter((s) => !s.fields[plan.targetField])
+    : snapshots;
+
+  const skipped = snapshots.length - toProcess.length;
+
+  const results: TransformResult[] = toProcess.map((snapshot) => {
+    let proposedValue: unknown = null;
+    const warnings: string[] = [];
+    const errors: string[] = [];
+
+    try {
+      const raw = applyFn(snapshot, plan.transformConfig, snapshots);
+      // Treat undefined the same as null (skip this entry). Generated code may
+      // omit an explicit return; undefined would survive !== null checks and write
+      // { locale: undefined } to Contentful.
+      proposedValue = raw === undefined ? null : raw;
+    } catch (err) {
+      errors.push(`Transform error: ${String(err)}`);
+    }
+
+    return {
+      entryId: snapshot.id,
+      displayLabel: snapshot.displayLabel,
+      currentValue: snapshot.fields[plan.targetField],
+      proposedValue,
+      warnings,
+      errors,
+    };
+  });
+
+  const errorCount = results.filter((r) => r.errors.length > 0).length;
+  const warningCount = results.filter((r) => r.warnings.length > 0).length;
+
+  return { plan, updates: results, skipped, canApply: errorCount === 0, errorCount, warningCount };
 }
 
 /**

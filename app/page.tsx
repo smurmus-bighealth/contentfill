@@ -467,6 +467,7 @@ function UpdateEntriesFlow({ spaceId, environment }: { spaceId: string; environm
           transformConfig: values.transformConfig,
           locale: values.locale,
           skipExisting: values.skipExisting,
+          inlineCode: values.inlineCode,
         },
       });
       setDryRunResult(result);

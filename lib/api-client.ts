@@ -39,10 +39,19 @@ export async function apiFetch<T = unknown>(
     throw new ApiError('Session expired. Redirecting to login…', 401);
   }
 
-  const data = await response.json();
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    if (!response.ok) {
+      throw new ApiError(`Server error (HTTP ${response.status})`, response.status);
+    }
+    throw new ApiError('Unexpected non-JSON response from server', response.status);
+  }
 
   if (!response.ok) {
-    throw new ApiError(data?.error ?? `HTTP ${response.status}`, response.status);
+    const msg = (data as Record<string, unknown>)?.error;
+    throw new ApiError(typeof msg === 'string' ? msg : `HTTP ${response.status}`, response.status);
   }
 
   return data as T;
