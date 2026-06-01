@@ -35,6 +35,7 @@ export interface ConfigValues {
   skipExisting: boolean;
   /** JavaScript function body used when transformId === 'ai-inline' */
   inlineCode?: string;
+  targetFieldRequired: boolean;
 }
 
 interface Props {
@@ -170,6 +171,7 @@ export default function ConfigStep({ onSubmit }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedCT || !targetField || !selectedTransform || !ct) return;
+    const targetFieldDef = ct.fields.find((f) => f.id === targetField);
     onSubmit({
       contentType: selectedCT,
       contentTypeName: ct.name,
@@ -178,6 +180,7 @@ export default function ConfigStep({ onSubmit }: Props) {
       transformConfig,
       locale,
       skipExisting,
+      targetFieldRequired: targetFieldDef?.required ?? false,
       ...(selectedTransform === 'ai-inline' ? { inlineCode: aiCode } : {}),
     });
   }

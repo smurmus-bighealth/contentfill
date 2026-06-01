@@ -24,6 +24,8 @@ export interface MigrationPlan {
   skipExisting: boolean;
   /** JavaScript function body eval'd server-side when transformId === 'ai-inline' */
   inlineCode?: string;
+  /** Whether the target field is marked required in the Contentful content type */
+  targetFieldRequired?: boolean;
 }
 
 export interface DryRunResult {
@@ -80,6 +82,10 @@ export async function dryRun(plan: MigrationPlan, token: string): Promise<DryRun
       proposedValue = transform.apply(snapshot, plan.transformConfig, snapshots);
     } catch (err) {
       errors.push(`Transform error: ${String(err)}`);
+    }
+
+    if (proposedValue === null && plan.targetFieldRequired && !snapshot.fields[plan.targetField]) {
+      errors.push(`Transform returned no value, but "${plan.targetField}" is a required field`);
     }
 
     return {
@@ -166,6 +172,10 @@ export async function dryRunInline(plan: MigrationPlan, token: string): Promise<
       proposedValue = raw === undefined ? null : raw;
     } catch (err) {
       errors.push(`Transform error: ${String(err)}`);
+    }
+
+    if (proposedValue === null && plan.targetFieldRequired && !snapshot.fields[plan.targetField]) {
+      errors.push(`Transform returned no value, but "${plan.targetField}" is a required field`);
     }
 
     return {

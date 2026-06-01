@@ -249,14 +249,16 @@ function AgentFlow({
 
     // Build a ConfigValues from the plan so PreviewStep can display correctly.
     const ct = contentTypes.find((c) => c.id === resolvedPlan.contentType);
+    const targetFieldDef = ct?.fields.find((f) => f.id === resolvedPlan.targetField);
     setAgentConfig({
-      contentType:     resolvedPlan.contentType,
-      contentTypeName: ct?.name ?? resolvedPlan.contentType,
-      targetField:     resolvedPlan.targetField,
-      transformId:     resolvedPlan.transformId,
-      transformConfig: resolvedPlan.transformConfig,
-      locale:          resolvedPlan.locale,
-      skipExisting:    resolvedPlan.skipExisting,
+      contentType:         resolvedPlan.contentType,
+      contentTypeName:     ct?.name ?? resolvedPlan.contentType,
+      targetField:         resolvedPlan.targetField,
+      transformId:         resolvedPlan.transformId,
+      transformConfig:     resolvedPlan.transformConfig,
+      locale:              resolvedPlan.locale,
+      skipExisting:        resolvedPlan.skipExisting,
+      targetFieldRequired: targetFieldDef?.required ?? false,
     });
 
     setPreviewError(null);
@@ -467,6 +469,7 @@ function UpdateEntriesFlow({ spaceId, environment }: { spaceId: string; environm
           transformConfig: values.transformConfig,
           locale: values.locale,
           skipExisting: values.skipExisting,
+          targetFieldRequired: values.targetFieldRequired,
           inlineCode: values.inlineCode,
         },
       });
