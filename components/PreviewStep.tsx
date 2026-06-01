@@ -35,7 +35,16 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
     const withOverrides = result.updates.map((u) => {
       const override = overrides[u.entryId];
       if (override !== undefined) {
-        return { ...u, proposedValue: override, errors: [], warnings: ['Manually overridden'] };
+        const overrideErrors: string[] = [];
+        if (config.targetFieldRequired && !override.trim()) {
+          overrideErrors.push(`"${config.targetField}" is a required field — value cannot be empty`);
+        }
+        return {
+          ...u,
+          proposedValue: override,
+          errors: overrideErrors,
+          warnings: overrideErrors.length === 0 ? ['Manually overridden'] : [],
+        };
       }
       return u;
     });
