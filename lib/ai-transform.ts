@@ -166,13 +166,18 @@ export async function aiDryRun(plan: MigrationPlan, token: string): Promise<DryR
         if (!byId.has(s.id)) {
           return makeBatchError(s, 'Entry was not included in the AI response');
         }
+        const proposedValue = byId.get(s.id) ?? null;
+        const errors: string[] = [];
+        if (proposedValue === null && plan.targetFieldRequired && !snap.fields[targetField]) {
+          errors.push(`Transform returned no value, but "${targetField}" is a required field`);
+        }
         return {
           entryId:       s.id,
           displayLabel:  s.displayLabel,
           currentValue:  snap.fields[targetField],
-          proposedValue: byId.get(s.id) ?? null,
+          proposedValue,
           warnings:      [],
-          errors:        [],
+          errors,
         };
       });
     } catch (err) {

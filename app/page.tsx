@@ -244,12 +244,15 @@ function AgentFlow({
   }, [resolvedCT]);
 
   async function handleResolution(resolution: AgentResolution) {
-    const resolvedPlan = resolution.plan;
+    const ct = contentTypes.find((c) => c.id === resolution.plan.contentType);
+    const targetFieldDef = ct?.fields.find((f) => f.id === resolution.plan.targetField);
+    const resolvedPlan: MigrationPlan = {
+      ...resolution.plan,
+      targetFieldRequired: targetFieldDef?.required ?? false,
+    };
     setPlan(resolvedPlan);
 
     // Build a ConfigValues from the plan so PreviewStep can display correctly.
-    const ct = contentTypes.find((c) => c.id === resolvedPlan.contentType);
-    const targetFieldDef = ct?.fields.find((f) => f.id === resolvedPlan.targetField);
     setAgentConfig({
       contentType:         resolvedPlan.contentType,
       contentTypeName:     ct?.name ?? resolvedPlan.contentType,
