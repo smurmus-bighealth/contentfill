@@ -184,24 +184,34 @@ export default function PreviewStep({ config, result, onApply, onBack, isApplyin
                   </td>
                   <td className="px-4 py-3">
                     <input
+                      key={`${u.entryId}-${isOverridden ? 'o' : 'orig'}`}
                       type="text"
                       defaultValue={isOverridden ? overrides[u.entryId] : String(u.proposedValue ?? '')}
                       onBlur={(e) => {
                         const val = e.target.value.trim();
                         if (val !== String(u.proposedValue ?? '')) {
                           setOverrides((prev) => ({ ...prev, [u.entryId]: val }));
+                        } else {
+                          // Value reset to original — remove any existing override
+                          setOverrides((prev) => { const n = { ...prev }; delete n[u.entryId]; return n; });
                         }
                       }}
                       className={`w-full rounded border px-2 py-1 text-sm font-mono ${
                         hasError ? 'border-red-400 bg-red-50' : 'border-gray-200'
                       }`}
                     />
-                    {u.errors.map((e) => (
-                      <p key={e} className="mt-1 text-xs text-red-600">{e}</p>
-                    ))}
-                    {u.warnings.map((w) => (
-                      <p key={w} className="mt-1 text-xs text-yellow-700">{w}</p>
-                    ))}
+                    {isOverridden ? (
+                      <p className="mt-1 text-xs text-purple-600">Manually overridden</p>
+                    ) : (
+                      <>
+                        {u.errors.map((e) => (
+                          <p key={e} className="mt-1 text-xs text-red-600">{e}</p>
+                        ))}
+                        {u.warnings.map((w) => (
+                          <p key={w} className="mt-1 text-xs text-yellow-700">{w}</p>
+                        ))}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {isOverridden && (
